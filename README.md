@@ -27,6 +27,38 @@ Zero domain cost, zero hosting cost — runs entirely on GitHub Pages.
 4. GitHub gives you a free URL like `https://yourusername.github.io/kraa-app/`.
    Open it on your phone or laptop — no domain, no server cost.
 
+## Part 1.5 — Protect your data on a public repo
+
+Since GitHub Pages needs a **public** repo, anyone with the URL could open the
+site. Two layers protect your data:
+
+**Layer A — Login screen (already built in).** The app now shows a password
+gate before anything loads.
+
+**Layer B — Server-side password check (the layer that actually matters).**
+If you only relied on the login screen, someone could still read your public
+repo's code, find your Apps Script Web App URL, and call it directly to skip
+the login screen entirely. So the *real* check happens inside `Code.gs` on
+Google's servers — it rejects any request that doesn't include the correct
+password token. Your password itself is never stored in code that goes to
+GitHub; it lives only in that Apps Script project's private "Script
+Properties."
+
+**Before connecting Sheets, you must set this password once:**
+1. In the Apps Script editor, open `Code.gs`.
+2. Find `setAppPassword()` near the top and temporarily change
+   `'CHANGE_ME'` to the password you want.
+3. Pick `setAppPassword` from the function dropdown at the top of the
+   editor and click **Run (▶)**. Approve the Google permission prompts.
+4. Check **View → Logs** — it should say "Password set."
+5. Change the text back to `'CHANGE_ME'` (or anything) and save, so the
+   real password isn't left sitting in the code.
+
+Until you connect Sheets, the app runs in **local-only mode**: the very
+first time you open it, it asks you to set a password on that device and
+remembers it there (a soft lock — fine for keeping the app private on your
+own phone/laptop, but not equivalent to the server-side check above).
+
 ## Part 2 — Connect Google Sheets as your cloud database (optional, also free)
 Right now all data is saved in the browser (localStorage) — great for testing,
 but tied to one device. To make it a real shared cloud database:
