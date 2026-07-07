@@ -1,23 +1,64 @@
 /**
  * KRAA Backend — Google Apps Script
  * ------------------------------------------------------------
- * Turns a Google Sheet into a free JSON database for the KRAA app.
+ * Turns a Google Sheet into a free JSON database for the KRAA app,
+ * protected by a password that never gets committed to GitHub.
  *
  * SETUP:
  * 1. Open (or create) a Google Sheet.
  * 2. Extensions > Apps Script, delete starter code, paste this file.
- * 3. Deploy > New deployment > Web app
+ * 3. Set your password (ONE TIME):
+ *      a. In setAppPassword() below, temporarily replace 'CHANGE_ME'
+ *         with the password you want.
+ *      b. Select setAppPassword from the function dropdown at the
+ *         top and click Run (▶). Approve the permissions Google asks for.
+ *      c. Check the execution log — it prints "Password set" to confirm.
+ *      d. IMPORTANT: change the password text back to 'CHANGE_ME' (or
+ *         anything) and save, so your real password never sits in code
+ *         that could later be shared or committed anywhere. The actual
+ *         password is now stored only in this project's Script
+ *         Properties, not in the code itself.
+ * 4. Deploy > New deployment > Web app
  *      Execute as: Me
  *      Who has access: Anyone
- * 4. Copy the deployment URL into js/sheets-api.js (SHEETS_WEB_APP_URL).
+ * 5. Copy the deployment URL into js/sheets-api.js (SHEETS_WEB_APP_URL).
  *
- * Each "collection" (customers, bookings, etc.) is stored as its own
- * sheet tab. Tabs are created automatically the first time data is
- * pushed to them — you do not need to pre-create anything.
+ * Every request from the app must now include a matching token (a
+ * SHA-256 hash of the password, computed in the browser) or it is
+ * rejected — so even though SHEETS_WEB_APP_URL is visible in your
+ * public GitHub repo, nobody can read or write your data without
+ * the password.
  */
+
+const PASSWORD_PROPERTY = 'APP_PASSWORD_HASH';
+
+// ---- Run this once manually from the Apps Script editor. ----
+function setAppPassword() {
+  const password = 'CHANGE_ME'; // <-- put your real password here, run once, then change back
+  const hash = sha256(password);
+  PropertiesService.getScriptProperties().setProperty(PASSWORD_PROPERTY, hash);
+  Logger.log('Password set. Hash stored: ' + hash);
+}
+
+function sha256(text) {
+  const raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  return raw.map(b => ((b < 0 ? b + 256 : b).toString(16).padStart(2, '0'))).join('');
+}
+
+function isAuthorized(token) {
+  const stored = PropertiesService.getScriptProperties().getProperty(PASSWORD_PROPERTY);
+  if (!stored) return false; // no password configured yet — deny by default
+  return token && token === stored;
+}
 
 function doGet(e) {
   const action = e.parameter.action;
+  const token = e.parameter.token || '';
+
+  if (!isAuthorized(token)) {
+    return jsonResponse({ ok: false, error: 'Unauthorized' });
+  }
+
   if (action === 'ping') {
     return jsonResponse({ ok: true, message: 'KRAA backend is alive' });
   }
@@ -29,6 +70,12 @@ function doGet(e) {
 
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
+  const token = body.token || '';
+
+  if (!isAuthorized(token)) {
+    return jsonResponse({ ok: false, error: 'Unauthorized' });
+  }
+
   if (body.action === 'pushCollection') {
     pushCollection(body.collection, body.records);
     return jsonResponse({ ok: true });
