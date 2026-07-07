@@ -1,18 +1,21 @@
 /* KRAA Auth
    ------------------------------------------------------------
-   The login screen is a UI gate. Real protection happens on the
-   backend (Apps Script checks a password hash stored in Script
-   Properties — never committed to GitHub). In local-only mode
-   (no Sheets connected yet) this still sets up the same pattern
-   so nothing needs to change later.
+   ONE universal password, same on every device. The password
+   itself is never stored in plain text — only its SHA-256 hash
+   sits in this file. Paste your hash into UNIVERSAL_PASSWORD_HASH
+   below (see README for how to generate it).
 
-   Session token is kept in sessionStorage only (cleared when the
-   browser tab closes) so the token isn't sitting in localStorage
-   indefinitely on a shared device.
+   Reminder: this repo is public, so this hash is technically
+   visible to anyone who looks at the source. A determined person
+   could brute-force a weak password offline. This is a deterrent
+   gate, not bank-grade security — for real protection, connect
+   Google Sheets (js/sheets-api.js) so the check happens on
+   Google's servers instead, where the password is never exposed.
 */
 
+const UNIVERSAL_PASSWORD_HASH = ''; // <-- paste your SHA-256 password hash here
+
 const AUTH_SESSION_KEY = 'kraa_session_token';
-const AUTH_LOCAL_HASH_KEY = 'kraa_local_pw_hash'; // only used when Sheets isn't connected yet
 const AUTH_FAIL_KEY = 'kraa_fail_count';
 const AUTH_LOCK_KEY = 'kraa_lock_until';
 const MAX_ATTEMPTS = 5;
@@ -27,42 +30,14 @@ const Auth = (() => {
   function getToken() {
     return sessionStorage.getItem(AUTH_SESSION_KEY) || '';
   }
-
   function setToken(hash) {
     sessionStorage.setItem(AUTH_SESSION_KEY, hash);
   }
-
   function clearToken() {
     sessionStorage.removeItem(AUTH_SESSION_KEY);
   }
-
   function isLoggedIn() {
     return !!getToken();
-  }
-
-  function hasLocalPasswordSet() {
-    return !!localStorage.getItem(AUTH_LOCAL_HASH_KEY);
-  }
-
-  // True only when there is no server-side (Sheets) auth configured AND
-  // no local password has ever been created — i.e. this device genuinely
-  // needs first-time setup. Never true again after a password exists.
-  function needsSetup() {
-    return !SheetsAPI.isConfigured() && !hasLocalPasswordSet();
-  }
-
-  async function createLocalPassword(password, confirmPassword) {
-    if (!password || password.length < 4) {
-      return { ok: false, error: 'Password must be at least 4 characters.' };
-    }
-    if (password !== confirmPassword) {
-      return { ok: false, error: 'Passwords do not match.' };
-    }
-    const hash = await sha256Hex(password);
-    localStorage.setItem(AUTH_LOCAL_HASH_KEY, hash);
-    setToken(hash);
-    _resetAttempts();
-    return { ok: true };
   }
 
   function _getLockUntil() {
@@ -89,8 +64,9 @@ const Auth = (() => {
     return remaining > 0 ? remaining : 0;
   }
 
-  // Strict verification only. Never creates or changes a password.
-  // Returns { ok: true } or { ok: false, error }.
+  // Strict verification against ONE universal password. Same check,
+  // same password, on every device — nothing is ever created or
+  // changed from the login screen.
   async function login(password) {
     if (lockoutSecondsRemaining() > 0) {
       return { ok: false, error: `Too many attempts. Try again in ${lockoutSecondsRemaining()}s.` };
@@ -105,10 +81,11 @@ const Auth = (() => {
       return { ok: false, error: 'Incorrect password.' };
     }
 
-    // Local mode: a password must already exist by this point (needsSetup
-    // is checked before this function is ever called for local mode).
-    const stored = localStorage.getItem(AUTH_LOCAL_HASH_KEY);
-    if (stored && stored === hash) {
+    if (!UNIVERSAL_PASSWORD_HASH) {
+      return { ok: false, error: 'No password has been configured yet. See README to set one.' };
+    }
+
+    if (hash === UNIVERSAL_PASSWORD_HASH) {
       setToken(hash);
       _resetAttempts();
       return { ok: true };
@@ -122,9 +99,5 @@ const Auth = (() => {
     location.reload();
   }
 
-  return {
-    getToken, isLoggedIn, login, logout,
-    hasLocalPasswordSet, needsSetup, createLocalPassword,
-    lockoutSecondsRemaining
-  };
+  return { getToken, isLoggedIn, login, logout, lockoutSecondsRemaining };
 })();
