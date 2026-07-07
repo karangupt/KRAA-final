@@ -13,6 +13,10 @@
 
 const AUTH_SESSION_KEY = 'kraa_session_token';
 const AUTH_LOCAL_HASH_KEY = 'kraa_local_pw_hash'; // only used when Sheets isn't connected yet
+const AUTH_FAIL_KEY = 'kraa_fail_count';
+const AUTH_LOCK_KEY = 'kraa_lock_until';
+const MAX_ATTEMPTS = 5;
+const LOCK_MS = 30000; // 30s lockout after MAX_ATTEMPTS wrong tries
 
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -40,35 +44,77 @@ const Auth = (() => {
     return !!localStorage.getItem(AUTH_LOCAL_HASH_KEY);
   }
 
-  async function setLocalPassword(password) {
-    const hash = await sha256Hex(password);
-    localStorage.setItem(AUTH_LOCAL_HASH_KEY, hash);
-    return hash;
+  // True only when there is no server-side (Sheets) auth configured AND
+  // no local password has ever been created — i.e. this device genuinely
+  // needs first-time setup. Never true again after a password exists.
+  function needsSetup() {
+    return !SheetsAPI.isConfigured() && !hasLocalPasswordSet();
   }
 
-  // Verifies a password. If Sheets is connected, the backend is the source
-  // of truth (real security). If not, we fall back to a locally-stored
-  // hash (a soft lock — protects against casual access on a shared device,
-  // not against someone reading the browser's storage directly).
+  async function createLocalPassword(password, confirmPassword) {
+    if (!password || password.length < 4) {
+      return { ok: false, error: 'Password must be at least 4 characters.' };
+    }
+    if (password !== confirmPassword) {
+      return { ok: false, error: 'Passwords do not match.' };
+    }
+    const hash = await sha256Hex(password);
+    localStorage.setItem(AUTH_LOCAL_HASH_KEY, hash);
+    setToken(hash);
+    _resetAttempts();
+    return { ok: true };
+  }
+
+  function _getLockUntil() {
+    return Number(localStorage.getItem(AUTH_LOCK_KEY) || 0);
+  }
+  function _getFailCount() {
+    return Number(localStorage.getItem(AUTH_FAIL_KEY) || 0);
+  }
+  function _resetAttempts() {
+    localStorage.removeItem(AUTH_FAIL_KEY);
+    localStorage.removeItem(AUTH_LOCK_KEY);
+  }
+  function _registerFailure() {
+    const count = _getFailCount() + 1;
+    localStorage.setItem(AUTH_FAIL_KEY, String(count));
+    if (count >= MAX_ATTEMPTS) {
+      localStorage.setItem(AUTH_LOCK_KEY, String(Date.now() + LOCK_MS));
+    }
+  }
+  function lockoutSecondsRemaining() {
+    const until = _getLockUntil();
+    if (!until) return 0;
+    const remaining = Math.ceil((until - Date.now()) / 1000);
+    return remaining > 0 ? remaining : 0;
+  }
+
+  // Strict verification only. Never creates or changes a password.
+  // Returns { ok: true } or { ok: false, error }.
   async function login(password) {
+    if (lockoutSecondsRemaining() > 0) {
+      return { ok: false, error: `Too many attempts. Try again in ${lockoutSecondsRemaining()}s.` };
+    }
+
     const hash = await sha256Hex(password);
 
     if (SheetsAPI.isConfigured()) {
-      const res = await SheetsAPI.verifyToken(hash);
-      if (res) setToken(hash);
-      return res;
+      const ok = await SheetsAPI.verifyToken(hash);
+      if (ok) { setToken(hash); _resetAttempts(); return { ok: true }; }
+      _registerFailure();
+      return { ok: false, error: 'Incorrect password.' };
     }
 
-    if (!hasLocalPasswordSet()) {
-      await setLocalPassword(password);
-      setToken(hash);
-      return true;
-    }
-
+    // Local mode: a password must already exist by this point (needsSetup
+    // is checked before this function is ever called for local mode).
     const stored = localStorage.getItem(AUTH_LOCAL_HASH_KEY);
-    const ok = stored === hash;
-    if (ok) setToken(hash);
-    return ok;
+    if (stored && stored === hash) {
+      setToken(hash);
+      _resetAttempts();
+      return { ok: true };
+    }
+    _registerFailure();
+    return { ok: false, error: 'Incorrect password.' };
   }
 
   function logout() {
@@ -76,5 +122,9 @@ const Auth = (() => {
     location.reload();
   }
 
-  return { getToken, isLoggedIn, login, logout, hasLocalPasswordSet };
+  return {
+    getToken, isLoggedIn, login, logout,
+    hasLocalPasswordSet, needsSetup, createLocalPassword,
+    lockoutSecondsRemaining
+  };
 })();
