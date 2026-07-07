@@ -195,9 +195,13 @@ const MODULES = {
 };
 
 const PLACEHOLDER_VIEWS = {
-  reports: { title: 'Reports', note: 'Sales, expense and profit reports will render here once enough data is logged across modules.' },
-  settings: { title: 'Settings', note: 'Role-based login, backup / restore, and Google Sheets connection status will live here.' },
-  networth: { title: 'Net Worth Dashboard', note: 'Auto-calculated from Bank Accounts, FD/RD, Investments and Assets & Liabilities.' }
+  // Anything not yet built lands here automatically — see catch-all in render().
+};
+
+const CUSTOM_VIEWS = {
+  reports:  { title: 'Reports',              render: renderReports,  wire: null },
+  networth: { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: null },
+  settings: { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
 };
 
 function tagFor(status) {
@@ -216,6 +220,7 @@ function navigateTo(view) {
   currentView = view;
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   $('#viewTitle').textContent = (MODULES[view] && MODULES[view].title)
+    || (CUSTOM_VIEWS[view] && CUSTOM_VIEWS[view].title)
     || (PLACEHOLDER_VIEWS[view] && PLACEHOLDER_VIEWS[view].title)
     || (view === 'dashboard' ? 'Dashboard' : view);
   render();
@@ -227,6 +232,11 @@ function render() {
   try {
     if (currentView === 'dashboard') { root.innerHTML = renderDashboard(); return; }
     if (MODULES[currentView]) { root.innerHTML = renderModuleView(MODULES[currentView], currentView); wireModuleView(currentView); return; }
+    if (CUSTOM_VIEWS[currentView]) {
+      root.innerHTML = CUSTOM_VIEWS[currentView].render();
+      if (CUSTOM_VIEWS[currentView].wire) CUSTOM_VIEWS[currentView].wire();
+      return;
+    }
     if (PLACEHOLDER_VIEWS[currentView]) { root.innerHTML = renderPlaceholder(PLACEHOLDER_VIEWS[currentView]); return; }
     root.innerHTML = renderPlaceholder({ title: currentView, note: 'This module is on the roadmap.' });
   } catch (err) {
@@ -321,6 +331,179 @@ function wireModuleView(key) {
       }
     }));
 }
+
+/* ---------- Reports ---------- */
+function renderReports() {
+  const invoices = Store.all('invoices');
+  const payments = Store.all('payments');
+  const expenses = Store.all('expenses');
+  const bookings = Store.all('bookings');
+
+  const revenue = invoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const profit = revenue - totalExpenses;
+
+  const paidPerInvoice = {};
+  payments.forEach(p => { paidPerInvoice[p.invoiceId] = (paidPerInvoice[p.invoiceId] || 0) + Number(p.amount || 0); });
+  const outstanding = invoices.reduce((s, i) => {
+    const paid = paidPerInvoice[i.id] || 0;
+    const due = Number(i.amount || 0) - paid;
+    return s + (due > 0 ? due : 0);
+  }, 0);
+
+  const expenseByCategory = {};
+  expenses.forEach(e => { expenseByCategory[e.category || 'Uncategorised'] = (expenseByCategory[e.category || 'Uncategorised'] || 0) + Number(e.amount || 0); });
+  const catRows = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
+
+  const statusCounts = {};
+  bookings.forEach(b => { statusCounts[b.status || 'unknown'] = (statusCounts[b.status || 'unknown'] || 0) + 1; });
+
+  return `
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Revenue (Invoiced)</div><div class="kpi-value">${fmt(revenue)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Expenses</div><div class="kpi-value">${fmt(totalExpenses)}</div></div>
+    <div class="kpi"><div class="kpi-label">Net Profit</div><div class="kpi-value" style="color:${profit >= 0 ? 'var(--teal)' : 'var(--danger)'}">${fmt(profit)}</div></div>
+    <div class="kpi"><div class="kpi-label">Outstanding Payments</div><div class="kpi-value">${fmt(outstanding)}</div></div>
+  </div>
+
+  <div class="card">
+    <div class="section-head"><h2>Expenses by category</h2></div>
+    ${catRows.length ? `
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+      <tbody>${catRows.map(([cat, amt]) => `<tr><td class="name-cell">${cat}</td><td>${fmt(amt)}</td></tr>`).join('')}</tbody>
+    </table></div>` : `<div class="empty-state"><div class="glyph">◒</div>No expenses logged yet.</div>`}
+  </div>
+
+  <div class="card">
+    <div class="section-head"><h2>Bookings by status</h2></div>
+    ${Object.keys(statusCounts).length ? `
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Status</th><th>Count</th></tr></thead>
+      <tbody>${Object.entries(statusCounts).map(([st, count]) => `<tr><td>${tagFor(st)}</td><td>${count}</td></tr>`).join('')}</tbody>
+    </table></div>` : `<div class="empty-state"><div class="glyph">◨</div>No bookings logged yet.</div>`}
+  </div>`;
+}
+
+/* ---------- Net Worth Dashboard ---------- */
+function renderNetWorth() {
+  const bank = Store.all('bankAccounts');
+  const fdrd = Store.all('fdrd');
+  const investments = Store.all('investments');
+  const assetsRaw = Store.all('assets');
+
+  const bankTotal = bank.reduce((s, a) => s + Number(a.balance || 0), 0);
+  const fdrdTotal = fdrd.reduce((s, a) => s + Number(a.principal || 0), 0);
+  const investTotal = investments.reduce((s, a) => s + Number(a.current || 0), 0);
+
+  const liabilities = assetsRaw.filter(a => (a.type || '').startsWith('Liability'));
+  const otherAssets = assetsRaw.filter(a => !(a.type || '').startsWith('Liability'));
+  const assetsTotal = otherAssets.reduce((s, a) => s + Number(a.value || 0), 0);
+  const liabilitiesTotal = liabilities.reduce((s, a) => s + Number(a.value || 0), 0);
+
+  const totalAssets = bankTotal + fdrdTotal + investTotal + assetsTotal;
+  const netWorth = totalAssets - liabilitiesTotal;
+
+  const rows = [
+    { label: 'Bank Accounts', value: bankTotal },
+    { label: 'FD / RD', value: fdrdTotal },
+    { label: 'Investments (current value)', value: investTotal },
+    { label: 'Other Assets', value: assetsTotal },
+    { label: 'Liabilities', value: -liabilitiesTotal }
+  ];
+
+  return `
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Total Assets</div><div class="kpi-value">${fmt(totalAssets)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Liabilities</div><div class="kpi-value" style="color:var(--danger)">${fmt(liabilitiesTotal)}</div></div>
+    <div class="kpi"><div class="kpi-label">Net Worth</div><div class="kpi-value" style="color:var(--teal)">${fmt(netWorth)}</div></div>
+  </div>
+  <div class="card">
+    <div class="section-head"><h2>Breakdown</h2></div>
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td class="name-cell">${r.label}</td><td style="color:${r.value < 0 ? 'var(--danger)' : 'inherit'}">${fmt(r.value)}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <p style="color:var(--muted); font-size:12px; margin-top:12px;">Pulled live from Bank Accounts, FD/RD, Investments and Assets &amp; Liabilities — update those modules and this updates automatically.</p>
+  </div>`;
+}
+
+/* ---------- Settings ---------- */
+function renderSettingsView() {
+  const sheetsOn = SheetsAPI.isConfigured();
+  return `
+  <div class="card">
+    <div class="section-head"><h2>Data backup &amp; restore</h2></div>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">Download a full backup of everything in this app (all modules) as a JSON file. Keep it somewhere safe — you can restore from it any time, on any device.</p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn" id="backupBtn">Download backup (.json)</button>
+      <label class="btn secondary" style="cursor:pointer;">Restore from file
+        <input type="file" id="restoreFile" accept="application/json" style="display:none;">
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-head"><h2>Security</h2></div>
+    <p style="color:var(--muted); font-size:13px;">
+      Login mode: <strong style="color:var(--text);">${sheetsOn ? 'Google Sheets (server-side check)' : 'Universal password (client-side hash)'}</strong><br><br>
+      ${sheetsOn
+        ? 'Password is verified by your Apps Script backend — it is never exposed in this app\'s code.'
+        : 'To change the password, generate a new SHA-256 hash (see README) and update UNIVERSAL_PASSWORD_HASH in js/auth.js, then redeploy. For stronger security, connect Google Sheets — see README Part 2.'}
+    </p>
+  </div>
+
+  <div class="card" style="border-color:var(--danger);">
+    <div class="section-head"><h2 style="color:var(--danger);">Danger zone</h2></div>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">This permanently deletes every record in every module on this device. Only do this if you have a backup you trust, or you genuinely want a clean slate.</p>
+    <button class="btn danger" id="resetBtn">Reset all data</button>
+  </div>`;
+}
+
+function wireSettingsView() {
+  const root = $('#viewRoot');
+
+  root.querySelector('#backupBtn')?.addEventListener('click', () => {
+    const data = Store.exportJSON();
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kraa-backup-${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  root.querySelector('#restoreFile')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!confirm('This will REPLACE all current data on this device with the contents of the backup file. This cannot be undone. Continue?')) {
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        Store.importJSON(reader.result);
+        alert('Backup restored successfully.');
+        render();
+      } catch (err) {
+        alert('Could not read this file — make sure it\'s a KRAA backup .json. ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  root.querySelector('#resetBtn')?.addEventListener('click', () => {
+    if (!confirm('This permanently deletes ALL data on this device (customers, bookings, invoices, everything). Are you sure?')) return;
+    if (!confirm('Last check — this cannot be undone unless you have a backup. Really reset everything?')) return;
+    Store.reset();
+    render();
+  });
+}
+
 
 /* ---------- Modal / form ---------- */
 function openModal(moduleKey, id) {
