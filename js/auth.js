@@ -13,7 +13,7 @@
    Google's servers instead, where the password is never exposed.
 */
 
-const UNIVERSAL_PASSWORD_HASH = ''; // <-- paste your SHA-256 password hash here
+const UNIVERSAL_PASSWORD_HASH = '4de91767635ed1cfc9f3ab3067e2b216e2a47d2a190e3a3cb0b9fab49414dbf8'; // <-- paste your SHA-256 password hash here
 
 const AUTH_SESSION_KEY = 'kraa_session_token';
 const AUTH_FAIL_KEY = 'kraa_fail_count';
