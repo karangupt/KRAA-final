@@ -20,15 +20,19 @@
    fully usable, just single-device.
 */
 
-const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwJekN1UW2FqfzxEfv8rY-WYsYaehYv8mupASbzCmvZtw9A05VrYLWlAIdpIftx4qfifA/exec'; // <-- paste your Apps Script Web App URL here
+const SHEETS_WEB_APP_URL = ''; // <-- paste your Apps Script Web App URL here
 
 const SheetsAPI = (() => {
   const isConfigured = () => !!SHEETS_WEB_APP_URL;
 
+  function token() {
+    return (typeof Auth !== 'undefined' && Auth.getToken()) || '';
+  }
+
   async function ping() {
     if (!isConfigured()) return false;
     try {
-      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=ping`);
+      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=ping&token=${encodeURIComponent(token())}`);
       const json = await res.json();
       return json && json.ok === true;
     } catch (e) {
@@ -36,11 +40,26 @@ const SheetsAPI = (() => {
     }
   }
 
+  // Called during login, BEFORE a session token exists yet — so it takes
+  // the candidate password hash directly instead of reading Auth.getToken().
+  async function verifyToken(candidateHash) {
+    try {
+      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=ping&token=${encodeURIComponent(candidateHash)}`);
+      const json = await res.json();
+      return json && json.ok === true;
+    } catch (e) {
+      console.error('Sheets auth check failed', e);
+      return false;
+    }
+  }
+
   async function pullAll() {
     if (!isConfigured()) return null;
     try {
-      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=pullAll`);
-      return await res.json();
+      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=pullAll&token=${encodeURIComponent(token())}`);
+      const json = await res.json();
+      if (!json.ok) { console.warn('Sheets pull rejected:', json.error); return null; }
+      return json;
     } catch (e) {
       console.error('Sheets pull failed', e);
       return null;
@@ -53,7 +72,7 @@ const SheetsAPI = (() => {
       const res = await fetch(SHEETS_WEB_APP_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' }, // avoids CORS preflight on Apps Script
-        body: JSON.stringify({ action: 'pushCollection', collection, records })
+        body: JSON.stringify({ action: 'pushCollection', collection, records, token: token() })
       });
       const json = await res.json();
       return json && json.ok === true;
@@ -63,5 +82,5 @@ const SheetsAPI = (() => {
     }
   }
 
-  return { isConfigured, ping, pullAll, pushCollection };
+  return { isConfigured, ping, verifyToken, pullAll, pushCollection };
 })();
