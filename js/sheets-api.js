@@ -20,7 +20,7 @@
    fully usable, just single-device.
 */
 
-const SHEETS_WEB_APP_URL = ''; // <-- paste your Apps Script Web App URL here
+const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyBCYqr2OAcwvg5_sOrWOLapYJm1QEYlKaH6AnN0OjDSyNXDYj_TJnEoVoMTDfTK0xuJg/exec'; // <-- paste your Apps Script Web App URL here
 
 const SheetsAPI = (() => {
   const isConfigured = () => !!SHEETS_WEB_APP_URL;
