@@ -12,10 +12,27 @@
 
 <!-- LOGIN GATE -->
 <div class="login-screen" id="loginScreen">
-  <form class="login-card" id="loginForm">
+
+  <form class="login-card" id="setupForm" style="display:none;">
+    <div class="login-tag">KRAA</div>
+    <h2>Create a password</h2>
+    <p class="login-sub">No password set on this device yet. Choose one to protect the app — you'll need it every time you open this site here.</p>
+    <div class="field">
+      <label>New password</label>
+      <input type="password" id="setupPassword" autocomplete="new-password" required minlength="4">
+    </div>
+    <div class="field">
+      <label>Confirm password</label>
+      <input type="password" id="setupConfirm" autocomplete="new-password" required minlength="4">
+    </div>
+    <button type="submit" class="btn" id="setupBtn">Set password &amp; unlock</button>
+    <div class="login-error" id="setupError"></div>
+  </form>
+
+  <form class="login-card" id="loginForm" style="display:none;">
     <div class="login-tag">KRAA</div>
     <h2>Sign in</h2>
-    <p class="login-sub" id="loginSub">Enter the password to access Projector Solutions data.</p>
+    <p class="login-sub">Enter the password to access Projector Solutions data.</p>
     <div class="field">
       <label>Password</label>
       <input type="password" id="loginPassword" autocomplete="current-password" required autofocus>
