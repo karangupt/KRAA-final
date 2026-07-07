@@ -402,8 +402,54 @@ function initChrome() {
   $('#todayChip').textContent = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function showApp() {
+  $('#loginScreen').style.display = 'none';
+  $('#appRoot').style.display = '';
   initChrome();
   checkSyncStatus();
   navigateTo('dashboard');
+}
+
+function initLogin() {
+  const form = $('#loginForm');
+  const sub = $('#loginSub');
+  const errorBox = $('#loginError');
+
+  if (SheetsAPI.isConfigured()) {
+    sub.textContent = 'Enter the password to access Projector Solutions data.';
+  } else if (!Auth.hasLocalPasswordSet()) {
+    sub.textContent = 'First time setup — choose a password to protect this app on this device.';
+    $('#loginBtn').textContent = 'Set password & unlock';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.textContent = '';
+    $('#loginBtn').disabled = true;
+    $('#loginBtn').textContent = 'Checking...';
+    const pw = $('#loginPassword').value;
+    try {
+      const ok = await Auth.login(pw);
+      if (ok) {
+        showApp();
+      } else {
+        errorBox.textContent = 'Incorrect password. Try again.';
+        $('#loginBtn').disabled = false;
+        $('#loginBtn').textContent = 'Unlock';
+      }
+    } catch (err) {
+      errorBox.textContent = 'Could not verify password. Check your connection.';
+      $('#loginBtn').disabled = false;
+      $('#loginBtn').textContent = 'Unlock';
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initLogin();
+  document.getElementById('logoutBtn')?.addEventListener('click', () => Auth.logout());
+  if (Auth.isLoggedIn()) {
+    showApp();
+  }
+  // else: login screen stays visible until submitted
 });
