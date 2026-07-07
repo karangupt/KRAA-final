@@ -411,36 +411,65 @@ function showApp() {
 }
 
 function initLogin() {
-  const form = $('#loginForm');
-  const sub = $('#loginSub');
-  const errorBox = $('#loginError');
+  if (Auth.needsSetup()) {
+    $('#setupForm').style.display = '';
+    wireSetupForm();
+  } else {
+    $('#loginForm').style.display = '';
+    wireLoginForm();
+  }
+}
 
-  if (SheetsAPI.isConfigured()) {
-    sub.textContent = 'Enter the password to access Projector Solutions data.';
-  } else if (!Auth.hasLocalPasswordSet()) {
-    sub.textContent = 'First time setup — choose a password to protect this app on this device.';
-    $('#loginBtn').textContent = 'Set password & unlock';
+function wireSetupForm() {
+  const form = $('#setupForm');
+  const errorBox = $('#setupError');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.textContent = '';
+    const pw = $('#setupPassword').value;
+    const confirm = $('#setupConfirm').value;
+    $('#setupBtn').disabled = true;
+    const result = await Auth.createLocalPassword(pw, confirm);
+    if (result.ok) {
+      showApp();
+    } else {
+      errorBox.textContent = result.error;
+      $('#setupBtn').disabled = false;
+    }
+  });
+}
+
+function wireLoginForm() {
+  const form = $('#loginForm');
+  const errorBox = $('#loginError');
+  const btn = $('#loginBtn');
+
+  const lockLeft = Auth.lockoutSecondsRemaining();
+  if (lockLeft > 0) {
+    btn.disabled = true;
+    errorBox.textContent = `Too many attempts. Try again in ${lockLeft}s.`;
   }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorBox.textContent = '';
-    $('#loginBtn').disabled = true;
-    $('#loginBtn').textContent = 'Checking...';
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
     const pw = $('#loginPassword').value;
     try {
-      const ok = await Auth.login(pw);
-      if (ok) {
+      const result = await Auth.login(pw);
+      if (result.ok) {
         showApp();
       } else {
-        errorBox.textContent = 'Incorrect password. Try again.';
-        $('#loginBtn').disabled = false;
-        $('#loginBtn').textContent = 'Unlock';
+        errorBox.textContent = result.error || 'Incorrect password.';
+        $('#loginPassword').value = '';
+        btn.disabled = false;
+        btn.textContent = 'Unlock';
       }
     } catch (err) {
       errorBox.textContent = 'Could not verify password. Check your connection.';
-      $('#loginBtn').disabled = false;
-      $('#loginBtn').textContent = 'Unlock';
+      btn.disabled = false;
+      btn.textContent = 'Unlock';
     }
   });
 }
@@ -451,5 +480,5 @@ document.addEventListener('DOMContentLoaded', () => {
   if (Auth.isLoggedIn()) {
     showApp();
   }
-  // else: login screen stays visible until submitted
+  // else: login/setup screen stays visible until submitted
 });
