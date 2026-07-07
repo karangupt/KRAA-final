@@ -224,10 +224,15 @@ function navigateTo(view) {
 
 function render() {
   const root = $('#viewRoot');
-  if (currentView === 'dashboard') { root.innerHTML = renderDashboard(); return; }
-  if (MODULES[currentView]) { root.innerHTML = renderModuleView(MODULES[currentView], currentView); wireModuleView(currentView); return; }
-  if (PLACEHOLDER_VIEWS[currentView]) { root.innerHTML = renderPlaceholder(PLACEHOLDER_VIEWS[currentView]); return; }
-  root.innerHTML = renderPlaceholder({ title: currentView, note: 'This module is on the roadmap.' });
+  try {
+    if (currentView === 'dashboard') { root.innerHTML = renderDashboard(); return; }
+    if (MODULES[currentView]) { root.innerHTML = renderModuleView(MODULES[currentView], currentView); wireModuleView(currentView); return; }
+    if (PLACEHOLDER_VIEWS[currentView]) { root.innerHTML = renderPlaceholder(PLACEHOLDER_VIEWS[currentView]); return; }
+    root.innerHTML = renderPlaceholder({ title: currentView, note: 'This module is on the roadmap.' });
+  } catch (err) {
+    console.error('Render error for view', currentView, err);
+    root.innerHTML = `<div class="empty-state"><div class="glyph">⚠</div>Something went wrong loading this view.<br><span style="font-size:11px;">${err.message}</span></div>`;
+  }
 }
 
 function renderPlaceholder(cfg) {
@@ -411,32 +416,7 @@ function showApp() {
 }
 
 function initLogin() {
-  if (Auth.needsSetup()) {
-    $('#setupForm').style.display = '';
-    wireSetupForm();
-  } else {
-    $('#loginForm').style.display = '';
-    wireLoginForm();
-  }
-}
-
-function wireSetupForm() {
-  const form = $('#setupForm');
-  const errorBox = $('#setupError');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errorBox.textContent = '';
-    const pw = $('#setupPassword').value;
-    const confirm = $('#setupConfirm').value;
-    $('#setupBtn').disabled = true;
-    const result = await Auth.createLocalPassword(pw, confirm);
-    if (result.ok) {
-      showApp();
-    } else {
-      errorBox.textContent = result.error;
-      $('#setupBtn').disabled = false;
-    }
-  });
+  wireLoginForm();
 }
 
 function wireLoginForm() {
@@ -474,11 +454,37 @@ function wireLoginForm() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  initLogin();
-  document.getElementById('logoutBtn')?.addEventListener('click', () => Auth.logout());
-  if (Auth.isLoggedIn()) {
-    showApp();
+function showBootError(err) {
+  console.error('KRAA boot error:', err);
+  const screen = document.getElementById('loginScreen');
+  if (screen) {
+    screen.style.display = 'flex';
+    screen.innerHTML = `
+      <div class="login-card">
+        <div class="login-tag">KRAA</div>
+        <h2>Something didn't load</h2>
+        <p class="login-sub">
+          The app hit an error while starting up. This usually means one of the
+          js/ files is missing or out of date on this deployment.<br><br>
+          Open the browser console (F12 → Console tab) for details, and check
+          that <code>js/store.js</code>, <code>js/auth.js</code>,
+          <code>js/sheets-api.js</code> and <code>js/app.js</code> are all
+          present and up to date in the repo.
+        </p>
+        <p class="login-error" style="margin:0;">${(err && err.message) ? err.message : String(err)}</p>
+      </div>`;
   }
-  // else: login/setup screen stays visible until submitted
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    initLogin();
+    document.getElementById('logoutBtn')?.addEventListener('click', () => Auth.logout());
+    if (Auth.isLoggedIn()) {
+      showApp();
+    }
+    // else: login/setup screen stays visible until submitted
+  } catch (err) {
+    showBootError(err);
+  }
 });
