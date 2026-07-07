@@ -30,34 +30,37 @@ Zero domain cost, zero hosting cost — runs entirely on GitHub Pages.
 ## Part 1.5 — Protect your data on a public repo
 
 Since GitHub Pages needs a **public** repo, anyone with the URL could open the
-site. Two layers protect your data:
+site. The app uses **one universal password** — same on every device, set
+once by you. Nothing is created per-device; the login screen only ever
+checks against the one password you configure.
 
-**Layer A — Login screen (already built in).** The app now shows a password
-gate before anything loads.
+**Set your password (takes 2 minutes):**
+1. Open your deployed site in any browser (or open `index.html` locally).
+2. Open the browser console (press F12, click the "Console" tab).
+3. Type this, replacing `yourpassword` with the password you want, and press Enter:
+   ```js
+   await sha256Hex('yourpassword')
+   ```
+4. It prints a long string like `2c26b46b68ffc68ff99b453c1d304134...` — copy it.
+5. Open `js/auth.js` in your repo and paste it here:
+   ```js
+   const UNIVERSAL_PASSWORD_HASH = 'PASTE_THE_HASH_HERE';
+   ```
+6. Commit/push the change. Now every device that opens the site sees the
+   same "Enter Password" screen, and only your one password unlocks it.
 
-**Layer B — Server-side password check (the layer that actually matters).**
-If you only relied on the login screen, someone could still read your public
-repo's code, find your Apps Script Web App URL, and call it directly to skip
-the login screen entirely. So the *real* check happens inside `Code.gs` on
-Google's servers — it rejects any request that doesn't include the correct
-password token. Your password itself is never stored in code that goes to
-GitHub; it lives only in that Apps Script project's private "Script
-Properties."
+**Important — this is a deterrent, not bank-grade security.** Because the
+repo is public, the password's hash is technically visible in the source
+code. A weak/short password could theoretically be cracked offline by
+someone determined to do so. It stops casual visitors and search-engine
+crawlers from seeing your data, but for real protection (where the check
+happens on a server you control, and the password is never exposed even as
+a hash), connect Google Sheets below — the Apps Script backend enforces the
+password server-side and never ships it in any public file.
 
-**Before connecting Sheets, you must set this password once:**
-1. In the Apps Script editor, open `Code.gs`.
-2. Find `setAppPassword()` near the top and temporarily change
-   `'CHANGE_ME'` to the password you want.
-3. Pick `setAppPassword` from the function dropdown at the top of the
-   editor and click **Run (▶)**. Approve the Google permission prompts.
-4. Check **View → Logs** — it should say "Password set."
-5. Change the text back to `'CHANGE_ME'` (or anything) and save, so the
-   real password isn't left sitting in the code.
-
-Until you connect Sheets, the app runs in **local-only mode**: the very
-first time you open it, it asks you to set a password on that device and
-remembers it there (a soft lock — fine for keeping the app private on your
-own phone/laptop, but not equivalent to the server-side check above).
+If you *do* connect Sheets, the same "Enter Password" screen is reused, but
+verification switches automatically to the backend check, and
+`UNIVERSAL_PASSWORD_HASH` in `auth.js` is ignored.
 
 ## Part 2 — Connect Google Sheets as your cloud database (optional, also free)
 Right now all data is saved in the browser (localStorage) — great for testing,
