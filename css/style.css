@@ -180,6 +180,22 @@ table.ledger tbody tr:hover{background:rgba(232,163,61,.04);}
 .field input:focus, .field select:focus{outline:1px solid var(--amber);}
 .modal-actions{display:flex; gap:10px; margin-top:6px;}
 
+/* ---------- Login gate ---------- */
+.login-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--bg); padding:20px;
+}
+.login-card{
+  width:100%; max-width:340px; background:var(--panel); border:1px solid var(--line);
+  border-radius:var(--radius); padding:28px 26px; border-left:3px solid var(--amber);
+}
+.login-tag{font-family:var(--font-disp); font-weight:700; color:var(--amber); letter-spacing:.04em; font-size:15px;}
+.login-card h2{font-family:var(--font-disp); margin:10px 0 4px; font-size:20px;}
+.login-sub{color:var(--muted); font-size:12.5px; margin:0 0 18px; line-height:1.5;}
+.login-card .field{margin-bottom:14px;}
+.login-card .btn{width:100%;}
+.login-error{color:var(--danger); font-size:12.5px; margin-top:10px; min-height:16px;}
+
 /* Responsive */
 @media (max-width: 880px){
   .sidebar{transform:translateX(-100%);}
