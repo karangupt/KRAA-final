@@ -37,7 +37,8 @@ const KRAA_DEFAULT_DATA = {
     { id: 's1', name: 'Ramesh Yadav', role: 'Technician', phone: '9876500000', salary: 15000 }
   ],
   bankAccounts: [
-    { id: 'ba1', bank: 'HDFC Bank', accType: 'Savings', number: 'XXXX4521', customerId: '', branch: 'Andheri West', ifscCode: 'HDFC0001234', customerCare: '1800-202-6161', balance: 84500 }
+    { id: 'ba1', bank: 'HDFC Bank', accType: 'Savings', number: 'XXXX4521', upiId: 'karan@okhdfcbank', customerId: '', branch: 'Andheri West', ifscCode: 'HDFC0001234', customerCare: '1800-202-6161', balance: 84500 },
+    { id: 'ba2', bank: 'SBI', accType: 'Sukanya Samriddhi', number: 'XXXX9087', upiId: '', customerId: '', branch: 'Andheri West', ifscCode: 'SBIN0001234', customerCare: '1800-425-3800', balance: 210000 }
   ],
   fdrd: [
     { id: 'f1', type: 'FD', bank: 'SBI', principal: 100000, rate: 7.1, maturity: '2027-03-01' }
