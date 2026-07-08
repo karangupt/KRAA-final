@@ -15,8 +15,8 @@ const KRAA_DEFAULT_DATA = {
     { id: 'c2', name: 'St. Xavier College', phone: '9833344556', email: 'events@xaviers.edu', gst: '', notes: 'Annual fest client' }
   ],
   bookings: [
-    { id: 'b1', customerId: 'c1', item: 'Epson 6000L Projector + Screen', startDate: '2026-07-10', endDate: '2026-07-12', amount: 6000, status: 'confirmed' },
-    { id: 'b2', customerId: 'c2', item: '2x BenQ Projector, Sound System', startDate: '2026-07-15', endDate: '2026-07-16', amount: 12000, status: 'pending' }
+    { id: 'b1', customerId: 'c1', clientName: 'Vikram Studios', location: 'Bandra, Mumbai', item: 'Epson 6000L Projector + Screen', startDate: '2026-07-10', endDate: '2026-07-12', amount: 6000, status: 'confirmed' },
+    { id: 'b2', customerId: 'c2', clientName: 'St. Xavier College', location: 'Fort, Mumbai', item: '2x BenQ Projector, Sound System', startDate: '2026-07-15', endDate: '2026-07-16', amount: 12000, status: 'pending' }
   ],
   equipment: [
     { id: 'e1', name: 'Epson 6000L Projector', category: 'Projector', qty: 3, available: 2, rate: 2000 },
@@ -64,6 +64,10 @@ const KRAA_DEFAULT_DATA = {
   ],
   insurance: [
     { id: 'ins1', type: 'Term Plan', policyNumber: 'LIC-TP-88452201', insuredName: 'Karan Gupta', nominee: 'Family Member', sumAssured: 5000000, agentName: 'Suresh Mehta', agentNumber: '9876511122', customerCare: '1800-425-9494', email: 'support@licindia.in', renewalDate: '2027-01-15', maturityDate: '2046-01-15', remarks: 'Annual premium' }
+  ],
+  otherIncome: [
+    { id: 'oi1', date: '2026-07-01', type: 'Interest', description: 'HDFC savings interest', amount: 420 },
+    { id: 'oi2', date: '2026-07-04', type: 'Rent from Property', description: 'Flat rent - July', amount: 18000 }
   ]
 };
 
