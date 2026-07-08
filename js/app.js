@@ -253,6 +253,30 @@ const MODULES = {
       { name: 'category', label: 'Category', type: 'text' },
       { name: 'amount', label: 'Amount (₹)', type: 'number' }
     ]
+  },
+  insurance: {
+    title: 'Insurance', collection: 'insurance', icon: '◕',
+    columns: [
+      { label: 'Type', field: 'type' },
+      { label: 'Policy No.', field: 'policyNumber', cls: 'name-cell' },
+      { label: 'Sum Assured', field: 'sumAssured', render: v => fmt(v) },
+      { label: 'Renewal Date', field: 'renewalDate' },
+      { label: 'Maturity Date', field: 'maturityDate' }
+    ],
+    fields: [
+      { name: 'type', label: 'Insurance type', type: 'select', options: ['Term Plan','Life Insurance','Health Insurance','Car Insurance','Scooter Insurance','Other'], required: true },
+      { name: 'policyNumber', label: 'Policy number', type: 'text', required: true },
+      { name: 'insuredName', label: 'Name (policyholder)', type: 'text' },
+      { name: 'nominee', label: 'Nominee', type: 'text' },
+      { name: 'sumAssured', label: 'Sum assured (₹)', type: 'number' },
+      { name: 'agentName', label: 'Agent name', type: 'text' },
+      { name: 'agentNumber', label: 'Agent phone number', type: 'text' },
+      { name: 'customerCare', label: 'Customer care number', type: 'text' },
+      { name: 'email', label: 'Insurer email ID', type: 'text' },
+      { name: 'renewalDate', label: 'Renewal date', type: 'date' },
+      { name: 'maturityDate', label: 'Maturity date', type: 'date' },
+      { name: 'remarks', label: 'Remarks', type: 'text' }
+    ]
   }
 };
 
