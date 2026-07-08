@@ -123,7 +123,7 @@ const MODULES = {
     title: 'Bank Accounts', collection: 'bankAccounts', icon: '◧',
     columns: [
       { label: 'Bank', field: 'bank', cls: 'name-cell' },
-      { label: 'Type', field: 'accType' },
+      { label: 'Type', field: 'accType', render: v => v === 'Sukanya Samriddhi' ? `${v} <span class="tag due" style="margin-left:6px;">Locked</span>` : (v || '—') },
       { label: 'Account No.', field: 'number' },
       { label: 'UPI ID', field: 'upiId' },
       { label: 'IFSC Code', field: 'ifscCode' },
