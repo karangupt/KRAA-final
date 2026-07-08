@@ -125,14 +125,16 @@ const MODULES = {
       { label: 'Bank', field: 'bank', cls: 'name-cell' },
       { label: 'Type', field: 'accType' },
       { label: 'Account No.', field: 'number' },
+      { label: 'UPI ID', field: 'upiId' },
       { label: 'IFSC Code', field: 'ifscCode' },
       { label: 'Branch', field: 'branch' },
       { label: 'Balance', field: 'balance', render: v => fmt(v) }
     ],
     fields: [
       { name: 'bank', label: 'Bank name', type: 'text', required: true },
-      { name: 'accType', label: 'Account type', type: 'select', options: ['Savings','Current'] },
+      { name: 'accType', label: 'Account type', type: 'select', options: ['Savings','Current','Sukanya Samriddhi'] },
       { name: 'number', label: 'Account number (masked)', type: 'text' },
+      { name: 'upiId', label: 'UPI ID (GPay / PhonePe / Paytm etc.)', type: 'text' },
       { name: 'customerId', label: 'Customer ID / CIF number', type: 'text' },
       { name: 'branch', label: 'Branch name', type: 'text' },
       { name: 'ifscCode', label: 'IFSC code', type: 'text' },
@@ -345,6 +347,9 @@ function renderDashboard() {
   const invoices = Store.all('invoices');
   const expenses = Store.all('expenses');
   const equipment = Store.all('equipment');
+  const bankAccounts = Store.all('bankAccounts');
+  const fdrd = Store.all('fdrd');
+  const creditCards = Store.all('creditCards');
 
   const revenue = invoices.reduce((s,i) => s + Number(i.amount||0), 0);
   const spend = expenses.reduce((s,e) => s + Number(e.amount||0), 0);
@@ -354,12 +359,40 @@ function renderDashboard() {
 
   const recentBookings = [...bookings].slice(-5).reverse();
 
+  // Bank balance — Savings + Current only. Sukanya is long-term/locked so it's
+  // shown separately and NOT counted as "available" spendable balance.
+  const availableBalance = bankAccounts
+    .filter(a => a.accType !== 'Sukanya Samriddhi')
+    .reduce((s, a) => s + Number(a.balance || 0), 0);
+  const sukanyaLocked = bankAccounts
+    .filter(a => a.accType === 'Sukanya Samriddhi')
+    .reduce((s, a) => s + Number(a.balance || 0), 0);
+  const fdTotal = fdrd.filter(f => f.type === 'FD').reduce((s, f) => s + Number(f.principal || 0), 0);
+  const rdTotal = fdrd.filter(f => f.type === 'RD').reduce((s, f) => s + Number(f.principal || 0), 0);
+  const creditCardDue = creditCards.reduce((s, c) => s + Number(c.dueAmount || 0), 0);
+  const nearestCardDue = creditCards
+    .filter(c => c.dueDate)
+    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+
   return `
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value">${fmt(revenue)}</div><div class="kpi-sub">${invoices.length} invoice(s)</div></div>
     <div class="kpi"><div class="kpi-label">Total Expenses</div><div class="kpi-value">${fmt(spend)}</div><div class="kpi-sub">${expenses.length} entries</div></div>
     <div class="kpi"><div class="kpi-label">Active Bookings</div><div class="kpi-value">${activeBookings}</div><div class="kpi-sub">${unpaidInvoices} unpaid invoice(s)</div></div>
     <div class="kpi"><div class="kpi-label">Equipment Available</div><div class="kpi-value">${availableUnits}</div><div class="kpi-sub">across ${equipment.length} item types</div></div>
+  </div>
+
+  <div class="section-head"><h2>Finance snapshot</h2></div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Available Balance</div><div class="kpi-value">${fmt(availableBalance)}</div><div class="kpi-sub">Savings + Current only</div></div>
+    <div class="kpi"><div class="kpi-label">FD Total</div><div class="kpi-value">${fmt(fdTotal)}</div><div class="kpi-sub">${fdrd.filter(f=>f.type==='FD').length} fixed deposit(s)</div></div>
+    <div class="kpi"><div class="kpi-label">RD Total</div><div class="kpi-value">${fmt(rdTotal)}</div><div class="kpi-sub">${fdrd.filter(f=>f.type==='RD').length} recurring deposit(s)</div></div>
+    <div class="kpi"><div class="kpi-label">Sukanya (Locked)</div><div class="kpi-value" style="color:var(--muted);">${fmt(sukanyaLocked)}</div><div class="kpi-sub">Long-term, not withdrawable</div></div>
+    <div class="kpi" style="border-left-color:${creditCardDue > 0 ? 'var(--danger)' : 'var(--amber)'};">
+      <div class="kpi-label">Credit Card Due</div>
+      <div class="kpi-value" style="color:${creditCardDue > 0 ? 'var(--danger)' : 'inherit'}">${fmt(creditCardDue)}</div>
+      <div class="kpi-sub">${nearestCardDue ? 'Next due: ' + nearestCardDue.dueDate : 'No dues logged'}</div>
+    </div>
   </div>
 
   <div class="card">
@@ -662,7 +695,7 @@ function openModal(moduleKey, id) {
         </select></div>`;
     }
     return `<div class="field"><label>${f.label}</label>
-      <input type="${f.type}" name="${f.name}" value="${val}" ${f.required?'required':''}></div>`;
+      <input type="${f.type}" name="${f.name}" value="${val}" ${f.type === 'number' ? 'step="any"' : ''} ${f.required?'required':''}></div>`;
   }).join('') + `
     <div class="modal-actions">
       <button type="submit" class="btn">Save</button>
