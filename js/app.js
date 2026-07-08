@@ -712,6 +712,47 @@ function showApp() {
 
 function initLogin() {
   wireLoginForm();
+  wireHashHelper();
+}
+
+function wireHashHelper() {
+  const showLink = $('#showHashHelper');
+  const backLink = $('#backToLogin');
+  const loginCard = $('#loginForm');
+  const helperCard = $('#hashHelperCard');
+  const genBtn = $('#generateHashBtn');
+  const copyBtn = $('#copyHashBtn');
+
+  showLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    loginCard.style.display = 'none';
+    helperCard.style.display = '';
+  });
+
+  backLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    helperCard.style.display = 'none';
+    loginCard.style.display = '';
+  });
+
+  genBtn?.addEventListener('click', async () => {
+    const pw = $('#hashInputPassword').value;
+    if (!pw) { alert('Type a password first.'); return; }
+    const hash = await sha256Hex(pw);
+    $('#hashResult').value = hash;
+    $('#hashResultField').style.display = '';
+  });
+
+  copyBtn?.addEventListener('click', () => {
+    const field = $('#hashResult');
+    field.select();
+    navigator.clipboard?.writeText(field.value).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy hash'; }, 1500);
+    }).catch(() => {
+      document.execCommand('copy');
+    });
+  });
 }
 
 function wireLoginForm() {
