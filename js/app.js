@@ -153,17 +153,73 @@ const MODULES = {
   },
   investments: {
     title: 'Investments', collection: 'investments', icon: '◫',
+    extraAction: { id: 'refreshPrices', label: '↻ Refresh Prices' },
     columns: [
       { label: 'Type', field: 'type' },
       { label: 'Name', field: 'name', cls: 'name-cell' },
+      { label: 'Ticker', field: 'ticker' },
+      { label: 'Qty', field: 'qty' },
       { label: 'Invested', field: 'invested', render: v => fmt(v) },
       { label: 'Current value', field: 'current', render: v => fmt(v) }
     ],
     fields: [
-      { name: 'type', label: 'Type', type: 'select', options: ['Mutual Fund','Stocks','Bonds','Gold','Silver','Crypto'] },
+      { name: 'type', label: 'Type', type: 'select', options: ['Mutual Fund','Indian Stock','US Stock','Bonds','Gold','Silver','Crypto'] },
       { name: 'name', label: 'Name', type: 'text', required: true },
+      { name: 'ticker', label: 'Ticker symbol (for stocks, e.g. AAPL)', type: 'text' },
+      { name: 'qty', label: 'Quantity / units held', type: 'number' },
       { name: 'invested', label: 'Amount invested (₹)', type: 'number' },
-      { name: 'current', label: 'Current value (₹)', type: 'number' }
+      { name: 'current', label: 'Current value (₹) — or click Refresh Prices', type: 'number' }
+    ]
+  },
+  vendor: {
+    title: 'Vendors', collection: 'vendors', icon: '◔',
+    columns: [
+      { label: 'Vendor', field: 'name', cls: 'name-cell' },
+      { label: 'Contact person', field: 'contactPerson' },
+      { label: 'Phone', field: 'phone' },
+      { label: 'Email', field: 'email' },
+      { label: 'Category', field: 'category' }
+    ],
+    fields: [
+      { name: 'name', label: 'Vendor / company name', type: 'text', required: true },
+      { name: 'contactPerson', label: 'Contact person', type: 'text' },
+      { name: 'phone', label: 'Phone', type: 'text' },
+      { name: 'email', label: 'Email', type: 'text' },
+      { name: 'category', label: 'Category (e.g. Equipment Supplier)', type: 'text' },
+      { name: 'notes', label: 'Notes', type: 'text' }
+    ]
+  },
+  creditcards: {
+    title: 'Credit Cards', collection: 'creditCards', icon: '◪',
+    columns: [
+      { label: 'Card', field: 'cardName', cls: 'name-cell' },
+      { label: 'Bank', field: 'bank' },
+      { label: 'Due Amount', field: 'dueAmount', render: v => fmt(v) },
+      { label: 'Due Date', field: 'dueDate' },
+      { label: 'Reward Points', field: 'rewardPoints' }
+    ],
+    fields: [
+      { name: 'cardName', label: 'Card name (e.g. HDFC Regalia)', type: 'text', required: true },
+      { name: 'bank', label: 'Bank', type: 'text' },
+      { name: 'last4', label: 'Last 4 digits', type: 'text' },
+      { name: 'creditLimit', label: 'Credit limit (₹)', type: 'number' },
+      { name: 'dueAmount', label: 'Current due amount (₹)', type: 'number' },
+      { name: 'dueDate', label: 'Payment due date', type: 'date' },
+      { name: 'rewardPoints', label: 'Reward points (update manually from statement/app)', type: 'number' }
+    ]
+  },
+  giftcards: {
+    title: 'Gift Cards & Wallets', collection: 'giftCards', icon: '◓',
+    columns: [
+      { label: 'Platform', field: 'platform', cls: 'name-cell' },
+      { label: 'Balance', field: 'balance', render: v => fmt(v) },
+      { label: 'Last Updated', field: 'lastUpdated' }
+    ],
+    fields: [
+      { name: 'platform', label: 'Platform', type: 'select', options: ['Amazon Pay Balance','Flipkart Gift Card','Amazon Gift Card','Paytm Wallet','Other'] },
+      { name: 'balance', label: 'Balance (₹) — check the app and update here', type: 'number' },
+      { name: 'lastUpdated', label: 'Last checked on', type: 'date' },
+      { name: 'notes', label: 'Notes (e.g. card code, expiry)', type: 'text' }
     ]
   },
   assets: {
@@ -299,7 +355,10 @@ function renderModuleView(cfg, key) {
   return `
   <div class="section-head">
     <h2>${cfg.title}</h2>
-    <button class="btn" data-add="${key}">+ Add</button>
+    <div style="display:flex; gap:10px;">
+      ${cfg.extraAction ? `<button class="btn secondary" id="${cfg.extraAction.id}">${cfg.extraAction.label}</button>` : ''}
+      <button class="btn" data-add="${key}">+ Add</button>
+    </div>
   </div>
   ${rows.length ? `
   <div class="table-wrap"><table class="ledger">
@@ -330,6 +389,53 @@ function wireModuleView(key) {
         syncCollection(key);
       }
     }));
+
+  if (key === 'investments') {
+    root.querySelector('#refreshPrices')?.addEventListener('click', refreshStockPrices);
+  }
+}
+
+async function refreshStockPrices() {
+  if (!SheetsAPI.isConfigured()) {
+    alert('Live price fetching needs the free Google Sheets backend connected (browsers can\'t call stock market APIs directly). See README Part 3 — Live stock prices.');
+    return;
+  }
+  const btn = $('#refreshPrices');
+  const items = Store.all('investments').filter(i => i.ticker);
+  if (!items.length) {
+    alert('Add a ticker symbol to at least one investment first (e.g. AAPL, TSLA, or an Indian symbol).');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing...'; }
+
+  // Fetch USD→INR once if any US stocks are present, reuse for all of them.
+  let usdInr = null;
+  if (items.some(i => i.type === 'US Stock')) {
+    const fx = await SheetsAPI.fetchFxRate('USD', 'INR');
+    if (fx && fx.ok) usdInr = fx.rate;
+  }
+
+  let updated = 0, failed = [];
+  for (const item of items) {
+    const result = await SheetsAPI.fetchStockPrice(item.ticker);
+    if (result && result.ok && result.price) {
+      const qty = Number(item.qty || 1);
+      let priceInInr = result.price;
+      if (item.type === 'US Stock') {
+        if (!usdInr) { failed.push(item.ticker + ' (no FX rate)'); continue; }
+        priceInInr = result.price * usdInr;
+      }
+      Store.update('investments', item.id, { current: Math.round(priceInInr * qty) });
+      updated++;
+    } else {
+      failed.push(item.ticker);
+    }
+  }
+
+  render();
+  syncCollection('investments');
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh Prices'; }
+  if (failed.length) alert(`Updated ${updated} of ${items.length}. Could not fetch: ${failed.join(', ')}`);
 }
 
 /* ---------- Reports ---------- */
