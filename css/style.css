@@ -196,6 +196,11 @@ table.ledger tbody tr:hover{background:rgba(232,163,61,.04);}
 .login-card .btn{width:100%;}
 .login-error{color:var(--danger); font-size:12.5px; margin-top:10px; min-height:16px;}
 
+.login-card code{
+  background:var(--bg); border:1px solid var(--line); border-radius:4px;
+  padding:1px 5px; font-family:var(--font-mono); font-size:11px; color:var(--amber);
+}
+
 /* Responsive */
 @media (max-width: 880px){
   .sidebar{transform:translateX(-100%);}
