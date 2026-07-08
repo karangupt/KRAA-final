@@ -125,12 +125,18 @@ const MODULES = {
       { label: 'Bank', field: 'bank', cls: 'name-cell' },
       { label: 'Type', field: 'accType' },
       { label: 'Account No.', field: 'number' },
+      { label: 'IFSC Code', field: 'ifscCode' },
+      { label: 'Branch', field: 'branch' },
       { label: 'Balance', field: 'balance', render: v => fmt(v) }
     ],
     fields: [
       { name: 'bank', label: 'Bank name', type: 'text', required: true },
       { name: 'accType', label: 'Account type', type: 'select', options: ['Savings','Current'] },
       { name: 'number', label: 'Account number (masked)', type: 'text' },
+      { name: 'customerId', label: 'Customer ID / CIF number', type: 'text' },
+      { name: 'branch', label: 'Branch name', type: 'text' },
+      { name: 'ifscCode', label: 'IFSC code', type: 'text' },
+      { name: 'customerCare', label: 'Customer care number', type: 'text' },
       { name: 'balance', label: 'Balance (₹)', type: 'number' }
     ]
   },
