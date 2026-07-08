@@ -43,7 +43,17 @@ const KRAA_DEFAULT_DATA = {
     { id: 'f1', type: 'FD', bank: 'SBI', principal: 100000, rate: 7.1, maturity: '2027-03-01' }
   ],
   investments: [
-    { id: 'inv1', type: 'Mutual Fund', name: 'Parag Parikh Flexi Cap', invested: 50000, current: 58200 }
+    { id: 'inv1', type: 'Mutual Fund', name: 'Parag Parikh Flexi Cap', ticker: '', qty: '', invested: 50000, current: 58200 },
+    { id: 'inv2', type: 'US Stock', name: 'Apple Inc.', ticker: 'AAPL', qty: 5, invested: 60000, current: 68500 }
+  ],
+  vendors: [
+    { id: 'v1', name: 'Sharma Electronics', contactPerson: 'Anil Sharma', phone: '9811122233', email: 'sharma.elec@example.com', category: 'Equipment Supplier', notes: 'Bulk projector parts' }
+  ],
+  creditCards: [
+    { id: 'cc1', cardName: 'HDFC Regalia', bank: 'HDFC Bank', last4: '4521', creditLimit: 200000, dueAmount: 18500, dueDate: '2026-07-20', rewardPoints: 3200 }
+  ],
+  giftCards: [
+    { id: 'gc1', platform: 'Amazon Pay Balance', balance: 1250, lastUpdated: '2026-07-01', notes: '' }
   ],
   assets: [
     { id: 'a1', type: 'Vehicle', name: 'Delivery Van', value: 320000 }
