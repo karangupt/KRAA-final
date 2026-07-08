@@ -27,6 +27,8 @@ const MODULES = {
     title: 'Bookings', collection: 'bookings', icon: '◨',
     columns: [
       { label: 'Item', field: 'item', cls: 'name-cell' },
+      { label: 'Client', field: 'clientName' },
+      { label: 'Location', field: 'location' },
       { label: 'Start', field: 'startDate' },
       { label: 'End', field: 'endDate' },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
@@ -34,7 +36,9 @@ const MODULES = {
     ],
     fields: [
       { name: 'item', label: 'Equipment / item', type: 'text', required: true },
-      { name: 'customerId', label: 'Customer', type: 'select', source: 'customers', optLabel: 'name' },
+      { name: 'clientName', label: 'Client name', type: 'text' },
+      { name: 'location', label: 'Location / venue', type: 'text' },
+      { name: 'customerId', label: 'Linked customer record (optional)', type: 'select', source: 'customers', optLabel: 'name' },
       { name: 'startDate', label: 'Start date', type: 'date' },
       { name: 'endDate', label: 'End date', type: 'date' },
       { name: 'amount', label: 'Amount (₹)', type: 'number' },
@@ -256,6 +260,21 @@ const MODULES = {
       { name: 'amount', label: 'Amount (₹)', type: 'number' }
     ]
   },
+  otherIncome: {
+    title: 'Other Income', collection: 'otherIncome', icon: '◓',
+    columns: [
+      { label: 'Date', field: 'date' },
+      { label: 'Source', field: 'type', cls: 'name-cell' },
+      { label: 'Description', field: 'description' },
+      { label: 'Amount', field: 'amount', render: v => fmt(v) }
+    ],
+    fields: [
+      { name: 'date', label: 'Date', type: 'date', required: true },
+      { name: 'type', label: 'Income source', type: 'select', options: ['Interest','Dividend','Rent from Property','Sale Commission','Other'], required: true },
+      { name: 'description', label: 'Description', type: 'text' },
+      { name: 'amount', label: 'Amount (₹)', type: 'number' }
+    ]
+  },
   insurance: {
     title: 'Insurance', collection: 'insurance', icon: '◕',
     columns: [
@@ -350,8 +369,11 @@ function renderDashboard() {
   const bankAccounts = Store.all('bankAccounts');
   const fdrd = Store.all('fdrd');
   const creditCards = Store.all('creditCards');
+  const otherIncome = Store.all('otherIncome');
 
-  const revenue = invoices.reduce((s,i) => s + Number(i.amount||0), 0);
+  const businessRevenue = invoices.reduce((s,i) => s + Number(i.amount||0), 0);
+  const otherIncomeTotal = otherIncome.reduce((s,o) => s + Number(o.amount||0), 0);
+  const revenue = businessRevenue + otherIncomeTotal;
   const spend = expenses.reduce((s,e) => s + Number(e.amount||0), 0);
   const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length;
   const unpaidInvoices = invoices.filter(i => i.status !== 'paid').length;
@@ -376,7 +398,7 @@ function renderDashboard() {
 
   return `
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value">${fmt(revenue)}</div><div class="kpi-sub">${invoices.length} invoice(s)</div></div>
+    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value">${fmt(revenue)}</div><div class="kpi-sub">Business ${fmt(businessRevenue)} + Other Income ${fmt(otherIncomeTotal)}</div></div>
     <div class="kpi"><div class="kpi-label">Total Expenses</div><div class="kpi-value">${fmt(spend)}</div><div class="kpi-sub">${expenses.length} entries</div></div>
     <div class="kpi"><div class="kpi-label">Active Bookings</div><div class="kpi-value">${activeBookings}</div><div class="kpi-sub">${unpaidInvoices} unpaid invoice(s)</div></div>
     <div class="kpi"><div class="kpi-label">Equipment Available</div><div class="kpi-value">${availableUnits}</div><div class="kpi-sub">across ${equipment.length} item types</div></div>
@@ -507,8 +529,11 @@ function renderReports() {
   const payments = Store.all('payments');
   const expenses = Store.all('expenses');
   const bookings = Store.all('bookings');
+  const otherIncome = Store.all('otherIncome');
 
-  const revenue = invoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const businessRevenue = invoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+  const otherIncomeTotal = otherIncome.reduce((s, o) => s + Number(o.amount || 0), 0);
+  const revenue = businessRevenue + otherIncomeTotal;
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
   const profit = revenue - totalExpenses;
 
@@ -524,12 +549,16 @@ function renderReports() {
   expenses.forEach(e => { expenseByCategory[e.category || 'Uncategorised'] = (expenseByCategory[e.category || 'Uncategorised'] || 0) + Number(e.amount || 0); });
   const catRows = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
 
+  const incomeBySource = {};
+  otherIncome.forEach(o => { incomeBySource[o.type || 'Other'] = (incomeBySource[o.type || 'Other'] || 0) + Number(o.amount || 0); });
+  const incomeRows = Object.entries(incomeBySource).sort((a, b) => b[1] - a[1]);
+
   const statusCounts = {};
   bookings.forEach(b => { statusCounts[b.status || 'unknown'] = (statusCounts[b.status || 'unknown'] || 0) + 1; });
 
   return `
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">Revenue (Invoiced)</div><div class="kpi-value">${fmt(revenue)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value">${fmt(revenue)}</div><div class="kpi-sub">Business ${fmt(businessRevenue)} + Other Income ${fmt(otherIncomeTotal)}</div></div>
     <div class="kpi"><div class="kpi-label">Total Expenses</div><div class="kpi-value">${fmt(totalExpenses)}</div></div>
     <div class="kpi"><div class="kpi-label">Net Profit</div><div class="kpi-value" style="color:${profit >= 0 ? 'var(--teal)' : 'var(--danger)'}">${fmt(profit)}</div></div>
     <div class="kpi"><div class="kpi-label">Outstanding Payments</div><div class="kpi-value">${fmt(outstanding)}</div></div>
@@ -542,6 +571,15 @@ function renderReports() {
       <thead><tr><th>Category</th><th>Amount</th></tr></thead>
       <tbody>${catRows.map(([cat, amt]) => `<tr><td class="name-cell">${cat}</td><td>${fmt(amt)}</td></tr>`).join('')}</tbody>
     </table></div>` : `<div class="empty-state"><div class="glyph">◒</div>No expenses logged yet.</div>`}
+  </div>
+
+  <div class="card">
+    <div class="section-head"><h2>Other income by source</h2></div>
+    ${incomeRows.length ? `
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Source</th><th>Amount</th></tr></thead>
+      <tbody>${incomeRows.map(([src, amt]) => `<tr><td class="name-cell">${src}</td><td>${fmt(amt)}</td></tr>`).join('')}</tbody>
+    </table></div>` : `<div class="empty-state"><div class="glyph">◓</div>No other income logged yet.</div>`}
   </div>
 
   <div class="card">
