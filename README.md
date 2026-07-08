@@ -83,6 +83,38 @@ but tied to one device. To make it a real shared cloud database:
    your Google Sheet automatically. Sheet tabs are created on their own the
    first time each module saves data.
 
+## Part 3 — Live US stock prices, Vendors, Credit Cards & Gift Cards
+
+**Vendors, Credit Cards, Gift Cards & Wallets** are plain manual-entry
+modules, same pattern as Customers — because there is no public API that
+lets an individual fetch their own credit card reward points or Amazon
+Pay / Flipkart gift card balance. Banks and these platforms don't expose
+that data outside their own logged-in apps. Update these whenever you
+check your statement/app.
+
+**US Stocks (and other tickers) support live price fetching**, since
+market data APIs do exist publicly:
+1. Sign up free at [twelvedata.com](https://twelvedata.com) (free tier is
+   generous enough for personal use) and copy your API key.
+2. In the Apps Script editor, open `Code.gs`, find `setStockApiKey()`,
+   paste your key in place of `PASTE_YOUR_TWELVE_DATA_KEY_HERE`.
+3. Run `setStockApiKey` once from the function dropdown (▶), approve
+   permissions if asked.
+4. Change the placeholder text back afterwards so the real key isn't left
+   in the code, and save.
+5. In the Investments module, add a stock with **Type = US Stock** and a
+   **Ticker** (e.g. `AAPL`, `TSLA`, `MSFT`) and a **Qty**.
+6. Click **↻ Refresh Prices** at the top of the Investments page — it
+   fetches the live price (in USD), converts it to ₹ using the current
+   exchange rate, multiplies by quantity, and updates Current Value.
+   Indian stocks can use their exchange-suffixed symbol per Twelve Data's
+   docs (e.g. `RELIANCE:NSE`) and are already quoted in ₹, no conversion
+   needed.
+
+This only works once Google Sheets is connected (Part 2) — browsers can't
+call financial data APIs directly, so the request is routed through your
+Apps Script backend, which fetches server-side and returns the price.
+
 ## What's next (Phase 2 ideas)
 - Reports module: profit/loss, booking calendar, overdue payments
 - Role-based login (Owner / Staff) using a simple PIN stored in Settings
