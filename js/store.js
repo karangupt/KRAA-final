@@ -60,6 +60,9 @@ const KRAA_DEFAULT_DATA = {
   ],
   personalExpenses: [
     { id: 'pe1', date: '2026-07-02', category: 'Groceries', amount: 2400 }
+  ],
+  insurance: [
+    { id: 'ins1', type: 'Term Plan', policyNumber: 'LIC-TP-88452201', insuredName: 'Karan Gupta', nominee: 'Family Member', sumAssured: 5000000, agentName: 'Suresh Mehta', agentNumber: '9876511122', customerCare: '1800-425-9494', email: 'support@licindia.in', renewalDate: '2027-01-15', maturityDate: '2046-01-15', remarks: 'Annual premium' }
   ]
 };
 
