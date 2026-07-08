@@ -20,7 +20,7 @@
    fully usable, just single-device.
 */
 
-const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyBCYqr2OAcwvg5_sOrWOLapYJm1QEYlKaH6AnN0OjDSyNXDYj_TJnEoVoMTDfTK0xuJg/exec'; // <-- paste your Apps Script Web App URL here
+const SHEETS_WEB_APP_URL = ''; // <-- paste your Apps Script Web App URL here
 
 const SheetsAPI = (() => {
   const isConfigured = () => !!SHEETS_WEB_APP_URL;
@@ -82,5 +82,26 @@ const SheetsAPI = (() => {
     }
   }
 
-  return { isConfigured, ping, verifyToken, pullAll, pushCollection };
+  async function fetchStockPrice(symbol) {
+    if (!isConfigured()) return { ok: false, error: 'Sheets not connected' };
+    try {
+      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=stockPrice&symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(token())}`);
+      return await res.json();
+    } catch (e) {
+      console.error('Stock price fetch failed', e);
+      return { ok: false, error: 'Network error' };
+    }
+  }
+
+  async function fetchFxRate(from, to) {
+    if (!isConfigured()) return { ok: false, error: 'Sheets not connected' };
+    try {
+      const res = await fetch(`${SHEETS_WEB_APP_URL}?action=fxRate&from=${from}&to=${to}&token=${encodeURIComponent(token())}`);
+      return await res.json();
+    } catch (e) {
+      return { ok: false, error: 'Network error' };
+    }
+  }
+
+  return { isConfigured, ping, verifyToken, pullAll, pushCollection, fetchStockPrice, fetchFxRate };
 })();
