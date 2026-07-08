@@ -31,6 +31,7 @@
  */
 
 const PASSWORD_PROPERTY = 'APP_PASSWORD_HASH';
+const STOCK_API_KEY_PROPERTY = 'STOCK_API_KEY';
 
 // ---- Run this once manually from the Apps Script editor. ----
 function setAppPassword() {
@@ -38,6 +39,13 @@ function setAppPassword() {
   const hash = sha256(password);
   PropertiesService.getScriptProperties().setProperty(PASSWORD_PROPERTY, hash);
   Logger.log('Password set. Hash stored: ' + hash);
+}
+
+// ---- Run this once to enable live stock prices (free key from twelvedata.com). ----
+function setStockApiKey() {
+  const apiKey = 'PASTE_YOUR_TWELVE_DATA_KEY_HERE'; // <-- sign up free at twelvedata.com, paste key, run once
+  PropertiesService.getScriptProperties().setProperty(STOCK_API_KEY_PROPERTY, apiKey);
+  Logger.log('Stock API key saved.');
 }
 
 function sha256(text) {
@@ -65,6 +73,12 @@ function doGet(e) {
   if (action === 'pullAll') {
     return jsonResponse({ ok: true, data: pullAllCollections() });
   }
+  if (action === 'stockPrice') {
+    return jsonResponse(fetchStockPrice(e.parameter.symbol));
+  }
+  if (action === 'fxRate') {
+    return jsonResponse(fetchFxRate(e.parameter.from, e.parameter.to));
+  }
   return jsonResponse({ ok: false, error: 'Unknown action' });
 }
 
@@ -81,6 +95,38 @@ function doPost(e) {
     return jsonResponse({ ok: true });
   }
   return jsonResponse({ ok: false, error: 'Unknown action' });
+}
+
+function fetchStockPrice(symbol) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty(STOCK_API_KEY_PROPERTY);
+  if (!apiKey) return { ok: false, error: 'Stock API key not configured — run setStockApiKey() first.' };
+  if (!symbol) return { ok: false, error: 'No symbol given' };
+
+  try {
+    const url = 'https://api.twelvedata.com/price?symbol=' + encodeURIComponent(symbol) + '&apikey=' + apiKey;
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const json = JSON.parse(res.getContentText());
+    if (json.price) {
+      return { ok: true, price: parseFloat(json.price) };
+    }
+    return { ok: false, error: json.message || 'Symbol not found' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+function fetchFxRate(from, to) {
+  const apiKey = PropertiesService.getScriptProperties().getProperty(STOCK_API_KEY_PROPERTY);
+  if (!apiKey) return { ok: false, error: 'Stock API key not configured — run setStockApiKey() first.' };
+  try {
+    const url = 'https://api.twelvedata.com/price?symbol=' + encodeURIComponent(from + '/' + to) + '&apikey=' + apiKey;
+    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const json = JSON.parse(res.getContentText());
+    if (json.price) return { ok: true, rate: parseFloat(json.price) };
+    return { ok: false, error: json.message || 'Rate not found' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 function jsonResponse(obj) {
