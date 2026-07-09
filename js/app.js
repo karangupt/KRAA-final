@@ -9,7 +9,7 @@ const fmtByType = (v, type) => (type === 'US Stock' ? '$' : '₹') + (Number(v) 
 // Account types that behave like long-term/locked investments — not
 // counted in "Available Balance" anywhere in the app. Add more types
 // here (e.g. 'PPF') and the exclusion applies everywhere automatically.
-const LOCKED_ACCOUNT_TYPES = ['Sukanya Samriddhi', 'Minor Account'];
+const LOCKED_ACCOUNT_TYPES = ['Sukanya Samriddhi', 'Minor Account', 'Spouse Account'];
 const todayStr = () => new Date().toISOString().slice(0,10);
 
 /* ---------- Module configs: drives generic table + form rendering ---------- */
@@ -150,7 +150,7 @@ const MODULES = {
     ],
     fields: [
       { name: 'bank', label: 'Bank name', type: 'text', required: true },
-      { name: 'accType', label: 'Account type', type: 'select', options: ['Savings','Current','Sukanya Samriddhi','Minor Account'] },
+      { name: 'accType', label: 'Account type', type: 'select', options: ['Savings','Current','Sukanya Samriddhi','Minor Account','Spouse Account'] },
       { name: 'number', label: 'Account number (masked)', type: 'text' },
       { name: 'upiId', label: 'UPI ID (GPay / PhonePe / Paytm etc.)', type: 'text' },
       { name: 'customerId', label: 'Customer ID / CIF number', type: 'text' },
@@ -540,7 +540,7 @@ function renderDashboard() {
       <div class="kpi-value" style="color:var(--teal);">${fmt(totalInvestmentValueInr)}</div>
       <div class="kpi-sub">${cachedUsdInrRate ? 'FD + RD + India + US, all combined' : 'Excludes US stocks — click Convert above'}</div>
     </div>
-    <div class="kpi"><div class="kpi-label">Locked Funds (Sukanya, Minor A/c)</div><div class="kpi-value" style="color:var(--muted);">${fmt(lockedTotal)}</div><div class="kpi-sub">Long-term, not withdrawable</div></div>
+    <div class="kpi"><div class="kpi-label">Not Available to Use (Sukanya, Minor, Spouse)</div><div class="kpi-value" style="color:var(--muted);">${fmt(lockedTotal)}</div><div class="kpi-sub">Tracked for visibility, not spendable by you</div></div>
     <div class="kpi" style="border-left-color:${creditCardDue > 0 ? 'var(--danger)' : 'var(--amber)'};">
       <div class="kpi-label">Credit Card Due</div>
       <div class="kpi-value" style="color:${creditCardDue > 0 ? 'var(--danger)' : 'inherit'}">${fmt(creditCardDue)}</div>
