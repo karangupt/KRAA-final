@@ -4,6 +4,8 @@ const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 const fmt = n => '₹' + (Number(n) || 0).toLocaleString('en-IN');
 
+const fmtByType = (v, type) => (type === 'US Stock' ? '$' : '₹') + (Number(v) || 0).toLocaleString('en-IN');
+
 // Account types that behave like long-term/locked investments — not
 // counted in "Available Balance" anywhere in the app. Add more types
 // here (e.g. 'PPF') and the exclusion applies everywhere automatically.
@@ -175,17 +177,20 @@ const MODULES = {
       { label: 'Type', field: 'type' },
       { label: 'Name', field: 'name', cls: 'name-cell' },
       { label: 'Ticker', field: 'ticker' },
+      { label: 'Broker', field: 'broker' },
       { label: 'Qty', field: 'qty' },
-      { label: 'Invested', field: 'invested', render: v => fmt(v) },
-      { label: 'Current value', field: 'current', render: v => fmt(v) }
+      { label: 'Invested', field: 'invested', render: (v, row) => fmtByType(v, row.type) },
+      { label: 'Current value', field: 'current', render: (v, row) => fmtByType(v, row.type) }
     ],
     fields: [
       { name: 'type', label: 'Type', type: 'select', options: ['Mutual Fund','Indian Stock','US Stock','Bonds','Gold','Silver','Crypto'] },
       { name: 'name', label: 'Name', type: 'text', required: true },
       { name: 'ticker', label: 'Ticker symbol (for stocks, e.g. AAPL)', type: 'text' },
+      { name: 'broker', label: 'Broker name (e.g. Zerodha, Groww, Robinhood)', type: 'text' },
+      { name: 'brokerAccountNumber', label: 'Broker / Demat account number', type: 'text' },
       { name: 'qty', label: 'Quantity / units held', type: 'number' },
-      { name: 'invested', label: 'Amount invested (₹)', type: 'number' },
-      { name: 'current', label: 'Current value (₹) — or click Refresh Prices', type: 'number' }
+      { name: 'invested', label: 'Amount invested (₹, or $ for US Stock)', type: 'number' },
+      { name: 'current', label: 'Current value (₹, or $ for US Stock) — or click Refresh Prices', type: 'number' }
     ]
   },
   vendor: {
@@ -284,13 +289,15 @@ const MODULES = {
     title: 'Insurance', collection: 'insurance', icon: '◕',
     columns: [
       { label: 'Type', field: 'type' },
-      { label: 'Policy No.', field: 'policyNumber', cls: 'name-cell' },
+      { label: 'Company', field: 'insuranceCompany', cls: 'name-cell' },
+      { label: 'Policy No.', field: 'policyNumber' },
       { label: 'Sum Assured', field: 'sumAssured', render: v => fmt(v) },
       { label: 'Renewal Date', field: 'renewalDate' },
       { label: 'Maturity Date', field: 'maturityDate' }
     ],
     fields: [
       { name: 'type', label: 'Insurance type', type: 'select', options: ['Term Plan','Life Insurance','Health Insurance','Car Insurance','Scooter Insurance','Other'], required: true },
+      { name: 'insuranceCompany', label: 'Insurance company name', type: 'text', required: true },
       { name: 'policyNumber', label: 'Policy number', type: 'text', required: true },
       { name: 'insuredName', label: 'Name (policyholder)', type: 'text' },
       { name: 'nominee', label: 'Nominee', type: 'text' },
@@ -300,8 +307,40 @@ const MODULES = {
       { name: 'customerCare', label: 'Customer care number', type: 'text' },
       { name: 'email', label: 'Insurer email ID', type: 'text' },
       { name: 'renewalDate', label: 'Renewal date', type: 'date' },
-      { name: 'maturityDate', label: 'Maturity date', type: 'date' },
+      { name: 'maturityDate', label: 'Maturity date (leave blank for Health/Car/Scooter — usually no maturity)', type: 'date' },
       { name: 'remarks', label: 'Remarks', type: 'text' }
+    ]
+  },
+  documents: {
+    title: 'Document Vault', collection: 'documents', icon: '◪',
+    columns: [
+      { label: 'Family Member', field: 'familyMember', cls: 'name-cell' },
+      { label: 'Category', field: 'category' },
+      { label: 'Title', field: 'title' },
+      { label: 'Link', field: 'driveLink', render: v => v ? `<a href="${v}" target="_blank" rel="noopener" style="color:var(--amber);">Open ↗</a>` : '—' },
+      { label: 'Added On', field: 'dateAdded' }
+    ],
+    fields: [
+      { name: 'familyMember', label: 'Family member', type: 'select', options: ['Karan Gupta','Rukmini Gupta','Aahana Gupta','Aarav Gupta','Shared / Family'], required: true },
+      { name: 'category', label: 'Document category', type: 'select', options: ['Property Document','Equipment Invoice','Gold Invoice','Aadhar Card','PAN Card','Passport','Other ID','Education Certificate','Other'], required: true },
+      { name: 'title', label: 'Title / description', type: 'text', required: true },
+      { name: 'driveLink', label: 'Google Drive link (upload the file to Drive, paste the shareable link here)', type: 'text' },
+      { name: 'dateAdded', label: 'Date added', type: 'date' },
+      { name: 'notes', label: 'Notes', type: 'textarea' }
+    ]
+  },
+  familyNotes: {
+    title: 'Family Notes', collection: 'familyNotes', icon: '◕',
+    columns: [
+      { label: 'Title', field: 'title', cls: 'name-cell' },
+      { label: 'For', field: 'forWhom' },
+      { label: 'Date', field: 'dateAdded' }
+    ],
+    fields: [
+      { name: 'title', label: 'Title', type: 'text', required: true },
+      { name: 'forWhom', label: 'For', type: 'select', options: ['Everyone','Karan Gupta','Rukmini Gupta','Aahana Gupta','Aarav Gupta'] },
+      { name: 'dateAdded', label: 'Date', type: 'date' },
+      { name: 'message', label: 'Message', type: 'textarea', required: true }
     ]
   }
 };
@@ -366,20 +405,74 @@ function renderPlaceholder(cfg) {
 }
 
 /* ---------- Dashboard ---------- */
+function monthLabel(monthKey) {
+  const d = new Date(monthKey + '-01T00:00:00');
+  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+}
+
+function buildMonthlyTrend() {
+  const incomeSources = [...Store.all('invoices'), ...Store.all('otherIncome')];
+  const expenseSources = [...Store.all('expenses'), ...Store.all('personalExpenses')];
+  const map = {};
+  incomeSources.forEach(e => {
+    if (!e.date) return;
+    const mk = e.date.slice(0, 7);
+    map[mk] = map[mk] || { income: 0, expense: 0 };
+    map[mk].income += Number(e.amount || 0);
+  });
+  expenseSources.forEach(e => {
+    if (!e.date) return;
+    const mk = e.date.slice(0, 7);
+    map[mk] = map[mk] || { income: 0, expense: 0 };
+    map[mk].expense += Number(e.amount || 0);
+  });
+  return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function renderMonthlyTrend() {
+  const rows = buildMonthlyTrend();
+  if (!rows.length) return `<div class="empty-state"><div class="glyph">◓</div>No dated income/expense entries yet.</div>`;
+  const maxVal = Math.max(1, ...rows.map(([, v]) => Math.max(v.income, v.expense)));
+  return `
+  <div style="display:flex; flex-direction:column; gap:14px;">
+    ${rows.map(([mk, v]) => `
+      <div>
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:5px;">
+          <span style="font-family:var(--font-disp); color:var(--text); font-weight:600;">${monthLabel(mk)}</span>
+          <span>Income ${fmt(v.income)} · Expense ${fmt(v.expense)} · Net <span style="color:${v.income-v.expense>=0?'var(--teal)':'var(--danger)'}">${fmt(v.income-v.expense)}</span></span>
+        </div>
+        <div style="height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden; margin-bottom:3px;">
+          <div style="height:100%; width:${(v.income/maxVal*100).toFixed(1)}%; background:var(--teal);"></div>
+        </div>
+        <div style="height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:${(v.expense/maxVal*100).toFixed(1)}%; background:var(--danger);"></div>
+        </div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
 function renderDashboard() {
   const bookings = Store.all('bookings');
   const invoices = Store.all('invoices');
   const expenses = Store.all('expenses');
+  const personalExpenses = Store.all('personalExpenses');
   const equipment = Store.all('equipment');
   const bankAccounts = Store.all('bankAccounts');
   const fdrd = Store.all('fdrd');
   const creditCards = Store.all('creditCards');
   const otherIncome = Store.all('otherIncome');
 
-  const businessRevenue = invoices.reduce((s,i) => s + Number(i.amount||0), 0);
-  const otherIncomeTotal = otherIncome.reduce((s,o) => s + Number(o.amount||0), 0);
-  const revenue = businessRevenue + otherIncomeTotal;
-  const spend = expenses.reduce((s,e) => s + Number(e.amount||0), 0);
+  // Running month only — not a mix of past/future dated entries.
+  const currentMonthKey = todayStr().slice(0, 7);
+  const inMonth = d => (d || '').slice(0, 7) === currentMonthKey;
+
+  const monthRevenue = invoices.filter(i => inMonth(i.date)).reduce((s,i) => s + Number(i.amount||0), 0)
+    + otherIncome.filter(o => inMonth(o.date)).reduce((s,o) => s + Number(o.amount||0), 0);
+  const monthExpense = expenses.filter(e => inMonth(e.date)).reduce((s,e) => s + Number(e.amount||0), 0)
+    + personalExpenses.filter(e => inMonth(e.date)).reduce((s,e) => s + Number(e.amount||0), 0);
+  const monthNet = monthRevenue - monthExpense;
+
   const activeBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length;
   const unpaidInvoices = invoices.filter(i => i.status !== 'paid').length;
   const availableUnits = equipment.reduce((s,e) => s + Number(e.available||0), 0);
@@ -405,9 +498,11 @@ function renderDashboard() {
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
 
   return `
+  <div class="section-head"><h2>${monthLabel(currentMonthKey)} — this month</h2></div>
   <div class="kpi-row">
-    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-value">${fmt(revenue)}</div><div class="kpi-sub">Business ${fmt(businessRevenue)} + Other Income ${fmt(otherIncomeTotal)}</div></div>
-    <div class="kpi"><div class="kpi-label">Total Expenses</div><div class="kpi-value">${fmt(spend)}</div><div class="kpi-sub">${expenses.length} entries</div></div>
+    <div class="kpi"><div class="kpi-label">Income This Month</div><div class="kpi-value">${fmt(monthRevenue)}</div><div class="kpi-sub">Business + Other Income</div></div>
+    <div class="kpi"><div class="kpi-label">Expenses This Month</div><div class="kpi-value">${fmt(monthExpense)}</div><div class="kpi-sub">Business + Personal</div></div>
+    <div class="kpi"><div class="kpi-label">Net This Month</div><div class="kpi-value" style="color:${monthNet>=0?'var(--teal)':'var(--danger)'}">${fmt(monthNet)}</div></div>
     <div class="kpi"><div class="kpi-label">Active Bookings</div><div class="kpi-value">${activeBookings}</div><div class="kpi-sub">${unpaidInvoices} unpaid invoice(s)</div></div>
     <div class="kpi"><div class="kpi-label">Equipment Available</div><div class="kpi-value">${availableUnits}</div><div class="kpi-sub">across ${equipment.length} item types</div></div>
   </div>
@@ -423,6 +518,12 @@ function renderDashboard() {
       <div class="kpi-value" style="color:${creditCardDue > 0 ? 'var(--danger)' : 'inherit'}">${fmt(creditCardDue)}</div>
       <div class="kpi-sub">${nearestCardDue ? 'Next due: ' + nearestCardDue.dueDate : 'No dues logged'}</div>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="section-head"><h2>Monthly trend</h2></div>
+    ${renderMonthlyTrend()}
+    <p style="color:var(--muted); font-size:11.5px; margin-top:14px;"><span style="color:var(--teal);">■</span> Income &nbsp; <span style="color:var(--danger);">■</span> Expense — across every month you have dated entries for, past or future.</p>
   </div>
 
   <div class="card">
@@ -458,7 +559,7 @@ function renderModuleView(cfg, key) {
     <thead><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
     <tbody>
       ${rows.map(r => `<tr>
-        ${cfg.columns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field]) : (r[c.field] ?? '')}</td>`).join('')}
+        ${cfg.columns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
         <td class="row-actions">
           <button data-edit="${key}" data-id="${r.id}">Edit</button>
           <button data-del="${key}" data-id="${r.id}">Delete</button>
@@ -739,6 +840,10 @@ function openModal(moduleKey, id) {
           <option value="">—</option>
           ${opts.map(o => `<option value="${o.value}" ${o.value===val?'selected':''}>${o.label}</option>`).join('')}
         </select></div>`;
+    }
+    if (f.type === 'textarea') {
+      return `<div class="field"><label>${f.label}</label>
+        <textarea name="${f.name}" rows="5" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:7px; font-size:13.5px; font-family:inherit; resize:vertical;" ${f.required?'required':''}>${val}</textarea></div>`;
     }
     return `<div class="field"><label>${f.label}</label>
       <input type="${f.type}" name="${f.name}" value="${val}" ${f.type === 'number' ? 'step="any"' : ''} ${f.required?'required':''}></div>`;
