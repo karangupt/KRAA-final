@@ -759,7 +759,14 @@ function renderNetWorth() {
   const investments = Store.all('investments');
   const assetsRaw = Store.all('assets');
 
-  const bankTotal = bank.reduce((s, a) => s + Number(a.balance || 0), 0);
+  // Sukanya, Minor and Spouse accounts hold money that isn't really "yours"
+  // to count as personal net worth — same exclusion as Available Balance.
+  const bankTotal = bank
+    .filter(a => !LOCKED_ACCOUNT_TYPES.includes(a.accType))
+    .reduce((s, a) => s + Number(a.balance || 0), 0);
+  const excludedBankTotal = bank
+    .filter(a => LOCKED_ACCOUNT_TYPES.includes(a.accType))
+    .reduce((s, a) => s + Number(a.balance || 0), 0);
   const fdrdTotal = fdrd.reduce((s, a) => s + Number(a.principal || 0), 0);
 
   // India investments are already stored in ₹. US Stocks are stored in $ and
@@ -799,7 +806,7 @@ function renderNetWorth() {
       <thead><tr><th>Category</th><th>Amount</th></tr></thead>
       <tbody>${rows.map(r => `<tr><td class="name-cell">${r.label}</td><td style="color:${r.value < 0 ? 'var(--danger)' : 'inherit'}">${fmt(r.value)}</td></tr>`).join('')}</tbody>
     </table></div>
-    <p style="color:var(--muted); font-size:12px; margin-top:12px;">Pulled live from Bank Accounts, FD/RD, Investments and Assets &amp; Liabilities — update those modules and this updates automatically.</p>
+    <p style="color:var(--muted); font-size:12px; margin-top:12px;">Pulled live from Bank Accounts, FD/RD, Investments and Assets &amp; Liabilities — update those modules and this updates automatically.${excludedBankTotal > 0 ? ` Excludes ${fmt(excludedBankTotal)} in Sukanya/Minor/Spouse accounts — that money isn't counted as your personal net worth.` : ''}</p>
   </div>`;
 }
 
