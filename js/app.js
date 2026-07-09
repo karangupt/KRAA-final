@@ -362,7 +362,7 @@ const PLACEHOLDER_VIEWS = {
 
 const CUSTOM_VIEWS = {
   reports:  { title: 'Reports',              render: renderReports,  wire: null },
-  networth: { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: null },
+  networth: { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: wireDashboard },
   settings: { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
 };
 
@@ -761,7 +761,13 @@ function renderNetWorth() {
 
   const bankTotal = bank.reduce((s, a) => s + Number(a.balance || 0), 0);
   const fdrdTotal = fdrd.reduce((s, a) => s + Number(a.principal || 0), 0);
-  const investTotal = investments.reduce((s, a) => s + Number(a.current || 0), 0);
+
+  // India investments are already stored in ₹. US Stocks are stored in $ and
+  // must be converted before they can be added to a ₹ net worth total.
+  const indiaInvestTotal = investments.filter(i => i.type !== 'US Stock').reduce((s, a) => s + Number(a.current || 0), 0);
+  const usInvestTotal = investments.filter(i => i.type === 'US Stock').reduce((s, a) => s + Number(a.current || 0), 0);
+  const usInvestInr = cachedUsdInrRate ? Math.round(usInvestTotal * cachedUsdInrRate) : 0;
+  const investTotal = indiaInvestTotal + usInvestInr;
 
   const liabilities = assetsRaw.filter(a => (a.type || '').startsWith('Liability'));
   const otherAssets = assetsRaw.filter(a => !(a.type || '').startsWith('Liability'));
@@ -774,7 +780,8 @@ function renderNetWorth() {
   const rows = [
     { label: 'Bank Accounts', value: bankTotal },
     { label: 'FD / RD', value: fdrdTotal },
-    { label: 'Investments (current value)', value: investTotal },
+    { label: 'India Investments', value: indiaInvestTotal },
+    { label: usInvestTotal > 0 ? `US Stocks ($${usInvestTotal.toLocaleString('en-IN')}${cachedUsdInrRate ? ' @ ₹'+cachedUsdInrRate+'/$' : ', not converted yet'})` : 'US Stocks', value: usInvestInr },
     { label: 'Other Assets', value: assetsTotal },
     { label: 'Liabilities', value: -liabilitiesTotal }
   ];
@@ -785,6 +792,7 @@ function renderNetWorth() {
     <div class="kpi"><div class="kpi-label">Total Liabilities</div><div class="kpi-value" style="color:var(--danger)">${fmt(liabilitiesTotal)}</div></div>
     <div class="kpi"><div class="kpi-label">Net Worth</div><div class="kpi-value" style="color:var(--teal)">${fmt(netWorth)}</div></div>
   </div>
+  ${usInvestTotal > 0 && !cachedUsdInrRate ? `<p style="color:var(--amber); font-size:12.5px; margin-bottom:14px;">⚠ You have $${usInvestTotal.toLocaleString('en-IN')} in US Stocks not yet converted to ₹ — Net Worth above excludes them. <a href="#" id="convertUsdBtn" style="color:var(--amber); text-decoration:underline;">Convert now</a></p>` : ''}
   <div class="card">
     <div class="section-head"><h2>Breakdown</h2></div>
     <div class="table-wrap"><table class="ledger">
