@@ -75,12 +75,19 @@ const MODULES = {
       { label: 'Date', field: 'date' },
       { label: 'Category', field: 'category' },
       { label: 'Description', field: 'desc', cls: 'name-cell' },
+      { label: 'Paid Via', field: 'paymentMode', render: (v, row) => {
+          if (v !== 'Credit Card') return v || '—';
+          const card = Store.get('creditCards', row.creditCardId);
+          return `Credit Card${card ? ' — ' + card.cardName : ''}`;
+        } },
       { label: 'Amount', field: 'amount', render: v => fmt(v) }
     ],
     fields: [
       { name: 'date', label: 'Date', type: 'date', required: true },
       { name: 'category', label: 'Category', type: 'text' },
       { name: 'desc', label: 'Description', type: 'text' },
+      { name: 'paymentMode', label: 'Paid via', type: 'select', options: ['Cash','UPI','Credit Card'] },
+      { name: 'creditCardId', label: 'Which credit card?', type: 'select', source: 'creditCards', optLabel: 'cardName', showIf: { field: 'paymentMode', equals: 'Credit Card' } },
       { name: 'amount', label: 'Amount (₹)', type: 'number' }
     ]
   },
@@ -188,6 +195,7 @@ const MODULES = {
       { name: 'ticker', label: 'Ticker symbol (for stocks, e.g. AAPL)', type: 'text' },
       { name: 'broker', label: 'Broker name (e.g. Zerodha, Groww, Robinhood)', type: 'text' },
       { name: 'brokerAccountNumber', label: 'Broker / Demat account number', type: 'text' },
+      { name: 'routingNumber', label: 'Routing number (US bank, for US Stock brokerage)', type: 'text' },
       { name: 'qty', label: 'Quantity / units held', type: 'number' },
       { name: 'invested', label: 'Amount invested (₹, or $ for US Stock)', type: 'number' },
       { name: 'current', label: 'Current value (₹, or $ for US Stock) — or click Refresh Prices', type: 'number' }
@@ -218,6 +226,7 @@ const MODULES = {
       { label: 'Bank', field: 'bank' },
       { label: 'Due Amount', field: 'dueAmount', render: v => fmt(v) },
       { label: 'Due Date', field: 'dueDate' },
+      { label: 'Tracked Spend', field: '_spend', render: (v, row) => fmt(Store.all('expenses').filter(e => e.paymentMode === 'Credit Card' && e.creditCardId === row.id).reduce((s, e) => s + Number(e.amount || 0), 0)) },
       { label: 'Reward Points', field: 'rewardPoints' }
     ],
     fields: [
@@ -258,15 +267,17 @@ const MODULES = {
     ]
   },
   personal: {
-    title: 'Personal Expenses', collection: 'personalExpenses', icon: '◪',
+    title: 'Recurring Bills & Utilities', collection: 'personalExpenses', icon: '◪',
     columns: [
-      { label: 'Date', field: 'date' },
       { label: 'Category', field: 'category', cls: 'name-cell' },
+      { label: 'Frequency', field: 'frequency' },
+      { label: 'Date', field: 'date' },
       { label: 'Amount', field: 'amount', render: v => fmt(v) }
     ],
     fields: [
-      { name: 'date', label: 'Date', type: 'date', required: true },
-      { name: 'category', label: 'Category', type: 'text' },
+      { name: 'category', label: 'Bill type', type: 'select', options: ['Electricity Bill','Society Maintenance','Property Tax','Water Bill','Gas Bill','Internet/Phone','Other'] },
+      { name: 'frequency', label: 'Frequency', type: 'select', options: ['Monthly','Quarterly','Half-Yearly','Yearly','One-time'] },
+      { name: 'date', label: 'Date paid / due', type: 'date', required: true },
       { name: 'amount', label: 'Amount (₹)', type: 'number' }
     ]
   },
@@ -365,6 +376,7 @@ function tagFor(status) {
 
 let currentView = 'dashboard';
 let editingContext = null; // { moduleKey, id }
+let cachedUsdInrRate = null; // set once user clicks "Convert to ₹" on the dashboard
 
 /* ---------- Router ---------- */
 function navigateTo(view) {
@@ -493,6 +505,9 @@ function renderDashboard() {
   const fdTotal = fdrd.filter(f => f.type === 'FD').reduce((s, f) => s + Number(f.principal || 0), 0);
   const rdTotal = fdrd.filter(f => f.type === 'RD').reduce((s, f) => s + Number(f.principal || 0), 0);
   const creditCardDue = creditCards.reduce((s, c) => s + Number(c.dueAmount || 0), 0);
+  const investments = Store.all('investments');
+  const indiaInvestTotal = investments.filter(i => i.type !== 'US Stock').reduce((s, i) => s + Number(i.current || 0), 0);
+  const usInvestTotal = investments.filter(i => i.type === 'US Stock').reduce((s, i) => s + Number(i.current || 0), 0);
   const nearestCardDue = creditCards
     .filter(c => c.dueDate)
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
@@ -512,6 +527,19 @@ function renderDashboard() {
     <div class="kpi"><div class="kpi-label">Available Balance</div><div class="kpi-value">${fmt(availableBalance)}</div><div class="kpi-sub">Savings + Current only</div></div>
     <div class="kpi"><div class="kpi-label">FD Total</div><div class="kpi-value">${fmt(fdTotal)}</div><div class="kpi-sub">${fdrd.filter(f=>f.type==='FD').length} fixed deposit(s)</div></div>
     <div class="kpi"><div class="kpi-label">RD Total</div><div class="kpi-value">${fmt(rdTotal)}</div><div class="kpi-sub">${fdrd.filter(f=>f.type==='RD').length} recurring deposit(s)</div></div>
+    <div class="kpi"><div class="kpi-label">India Investments</div><div class="kpi-value">${fmt(indiaInvestTotal)}</div><div class="kpi-sub">Mutual Funds, Indian Stocks, Gold, etc.</div></div>
+    <div class="kpi">
+      <div class="kpi-label">US Stock Investments</div>
+      <div class="kpi-value">$${usInvestTotal.toLocaleString('en-IN')}</div>
+      ${cachedUsdInrRate
+        ? `<div class="kpi-sub">≈ ${fmt(Math.round(usInvestTotal * cachedUsdInrRate))} @ ₹${cachedUsdInrRate}/$ &nbsp;<a href="#" id="convertUsdBtn" style="color:var(--amber);">refresh rate</a></div>`
+        : `<div class="kpi-sub"><a href="#" id="convertUsdBtn" style="color:var(--amber);">Convert to ₹ →</a></div>`}
+    </div>
+    <div class="kpi" style="border-left-color:var(--teal);">
+      <div class="kpi-label">Total Investment Value</div>
+      <div class="kpi-value" style="color:var(--teal);">${fmt(totalInvestmentValueInr)}</div>
+      <div class="kpi-sub">${cachedUsdInrRate ? 'FD + RD + India + US, all combined' : 'Excludes US stocks — click Convert above'}</div>
+    </div>
     <div class="kpi"><div class="kpi-label">Locked Funds (Sukanya, Minor A/c)</div><div class="kpi-value" style="color:var(--muted);">${fmt(lockedTotal)}</div><div class="kpi-sub">Long-term, not withdrawable</div></div>
     <div class="kpi" style="border-left-color:${creditCardDue > 0 ? 'var(--danger)' : 'var(--amber)'};">
       <div class="kpi-label">Credit Card Due</div>
@@ -832,26 +860,48 @@ function openModal(moduleKey, id) {
   const form = $('#modalForm');
   form.innerHTML = cfg.fields.map(f => {
     const val = record[f.name] ?? '';
+    const wrapAttrs = f.showIf ? `data-showif-field="${f.showIf.field}" data-showif-equals="${f.showIf.equals}"` : '';
+    let inner;
     if (f.type === 'select') {
       const opts = f.source ? Store.all(f.source).map(o => ({ value: o.id, label: o[f.optLabel] }))
                              : f.options.map(o => ({ value: o, label: o }));
-      return `<div class="field"><label>${f.label}</label>
+      inner = `<label>${f.label}</label>
         <select name="${f.name}">
           <option value="">—</option>
           ${opts.map(o => `<option value="${o.value}" ${o.value===val?'selected':''}>${o.label}</option>`).join('')}
-        </select></div>`;
+        </select>`;
+    } else if (f.type === 'textarea') {
+      inner = `<label>${f.label}</label>
+        <textarea name="${f.name}" rows="5" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:7px; font-size:13.5px; font-family:inherit; resize:vertical;" ${f.required?'required':''}>${val}</textarea>`;
+    } else {
+      inner = `<label>${f.label}</label>
+      <input type="${f.type}" name="${f.name}" value="${val}" ${f.type === 'number' ? 'step="any"' : ''} ${f.required?'required':''}>`;
     }
-    if (f.type === 'textarea') {
-      return `<div class="field"><label>${f.label}</label>
-        <textarea name="${f.name}" rows="5" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:7px; font-size:13.5px; font-family:inherit; resize:vertical;" ${f.required?'required':''}>${val}</textarea></div>`;
-    }
-    return `<div class="field"><label>${f.label}</label>
-      <input type="${f.type}" name="${f.name}" value="${val}" ${f.type === 'number' ? 'step="any"' : ''} ${f.required?'required':''}></div>`;
+    return `<div class="field" ${wrapAttrs}>${inner}</div>`;
   }).join('') + `
     <div class="modal-actions">
       <button type="submit" class="btn">Save</button>
       <button type="button" class="btn secondary" id="cancelModal">Cancel</button>
     </div>`;
+
+  // Conditional fields: hide/show based on another field's current value,
+  // e.g. "Which credit card?" only appears when Payment Mode = Credit Card.
+  const conditionalWraps = form.querySelectorAll('[data-showif-field]');
+  function applyConditionalVisibility() {
+    conditionalWraps.forEach(wrap => {
+      const controllerName = wrap.dataset.showifField;
+      const expected = wrap.dataset.showifEquals;
+      const controller = form.querySelector(`[name="${controllerName}"]`);
+      const match = controller && controller.value === expected;
+      wrap.style.display = match ? '' : 'none';
+    });
+  }
+  const controllerNames = new Set(Array.from(conditionalWraps).map(w => w.dataset.showifField));
+  controllerNames.forEach(name => {
+    const controller = form.querySelector(`[name="${name}"]`);
+    controller?.addEventListener('change', applyConditionalVisibility);
+  });
+  applyConditionalVisibility();
 
   form.querySelector('#cancelModal').addEventListener('click', closeModal);
   form.onsubmit = (e) => {
