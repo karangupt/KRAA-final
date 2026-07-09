@@ -393,7 +393,7 @@ function navigateTo(view) {
 function render() {
   const root = $('#viewRoot');
   try {
-    if (currentView === 'dashboard') { root.innerHTML = renderDashboard(); return; }
+    if (currentView === 'dashboard') { root.innerHTML = renderDashboard(); wireDashboard(); return; }
     if (MODULES[currentView]) { root.innerHTML = renderModuleView(MODULES[currentView], currentView); wireModuleView(currentView); return; }
     if (CUSTOM_VIEWS[currentView]) {
       root.innerHTML = CUSTOM_VIEWS[currentView].render();
@@ -464,6 +464,28 @@ function renderMonthlyTrend() {
   </div>`;
 }
 
+function wireDashboard() {
+  $('#convertUsdBtn')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await convertUsdToInr();
+  });
+}
+
+async function convertUsdToInr() {
+  let rate = null;
+  if (SheetsAPI.isConfigured()) {
+    const fx = await SheetsAPI.fetchFxRate('USD', 'INR');
+    if (fx && fx.ok) rate = fx.rate;
+  }
+  if (!rate) {
+    const manual = prompt('Enter the current USD to INR rate (e.g. 83.5):', cachedUsdInrRate || '');
+    if (!manual || isNaN(parseFloat(manual))) return;
+    rate = parseFloat(manual);
+  }
+  cachedUsdInrRate = rate;
+  render();
+}
+
 function renderDashboard() {
   const bookings = Store.all('bookings');
   const invoices = Store.all('invoices');
@@ -508,6 +530,7 @@ function renderDashboard() {
   const investments = Store.all('investments');
   const indiaInvestTotal = investments.filter(i => i.type !== 'US Stock').reduce((s, i) => s + Number(i.current || 0), 0);
   const usInvestTotal = investments.filter(i => i.type === 'US Stock').reduce((s, i) => s + Number(i.current || 0), 0);
+  const totalInvestmentValueInr = fdTotal + rdTotal + indiaInvestTotal + (cachedUsdInrRate ? Math.round(usInvestTotal * cachedUsdInrRate) : 0);
   const nearestCardDue = creditCards
     .filter(c => c.dueDate)
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
