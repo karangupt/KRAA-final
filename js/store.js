@@ -68,6 +68,12 @@ const KRAA_DEFAULT_DATA = {
   otherIncome: [
     { id: 'oi1', date: '2026-07-01', type: 'Interest', description: 'HDFC savings interest', amount: 420 },
     { id: 'oi2', date: '2026-07-04', type: 'Rent from Property', description: 'Flat rent - July', amount: 18000 }
+  ],
+  documents: [
+    { id: 'doc1', familyMember: 'Karan Gupta', category: 'Aadhar Card', title: 'Karan Gupta - Aadhar', driveLink: '', dateAdded: '2026-07-01', notes: 'Upload to Google Drive and paste the link here' }
+  ],
+  familyNotes: [
+    { id: 'fn1', title: 'Welcome note', forWhom: '', dateAdded: '2026-07-01', message: 'This is where I keep track of everything for the family — accounts, policies, documents. Check Document Vault and Insurance for policy details, and Net Worth Dashboard for a full picture of our finances.' }
   ]
 };
 
