@@ -877,6 +877,17 @@ function renderSettingsView() {
     </div>
   </div>
 
+  ${sheetsOn ? `
+  <div class="card" style="border-left-color:var(--teal);">
+    <div class="section-head"><h2>Push local data to Google Sheets</h2></div>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">
+      Sheets is connected. If this device has entries that were added before connecting (or entries not yet in the Sheet), click below to push everything from this device into your Google Sheet in one go.
+    </p>
+    <button class="btn" id="pushAllBtn">Push all local data to Sheets</button>
+    <div id="pushAllStatus" style="margin-top:10px; font-size:12.5px; color:var(--muted);"></div>
+  </div>
+  ` : ''}
+
   <div class="card">
     <div class="section-head"><h2>Security</h2></div>
     <p style="color:var(--muted); font-size:13px;">
@@ -928,6 +939,26 @@ function wireSettingsView() {
       }
     };
     reader.readAsText(file);
+  });
+
+  root.querySelector('#pushAllBtn')?.addEventListener('click', async () => {
+    const btn = $('#pushAllBtn');
+    const status = $('#pushAllStatus');
+    btn.disabled = true;
+    btn.textContent = 'Pushing...';
+    const collections = [...new Set(Object.values(MODULES).map(m => m.collection))];
+    let done = 0, failed = [];
+    for (const col of collections) {
+      const records = Store.all(col);
+      const ok = await SheetsAPI.pushCollection(col, records);
+      if (ok) done++; else failed.push(col);
+      status.textContent = `Pushing ${done + failed.length} of ${collections.length} sheets...`;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Push all local data to Sheets';
+    status.textContent = failed.length
+      ? `Done, but ${failed.length} sheet(s) failed: ${failed.join(', ')}. Check your Apps Script deployment.`
+      : `All ${done} sheets pushed successfully.`;
   });
 
   root.querySelector('#resetBtn')?.addEventListener('click', () => {
