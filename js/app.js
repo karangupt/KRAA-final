@@ -595,22 +595,54 @@ function renderDashboard() {
 }
 
 /* ---------- Generic module table view ---------- */
+const COLUMN_PREFS_KEY = 'kraa_column_prefs_v1';
+
+function getColumnPrefs(moduleKey) {
+  try {
+    const all = JSON.parse(localStorage.getItem(COLUMN_PREFS_KEY) || '{}');
+    return all[moduleKey] || {};
+  } catch (e) { return {}; }
+}
+
+function isColumnVisible(moduleKey, field) {
+  const prefs = getColumnPrefs(moduleKey);
+  return prefs[field] !== false; // visible by default unless explicitly hidden
+}
+
+function setColumnVisible(moduleKey, field, visible) {
+  try {
+    const all = JSON.parse(localStorage.getItem(COLUMN_PREFS_KEY) || '{}');
+    all[moduleKey] = all[moduleKey] || {};
+    all[moduleKey][field] = visible;
+    localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(all));
+  } catch (e) { console.error('Could not save column preference', e); }
+}
+
 function renderModuleView(cfg, key) {
   const rows = Store.all(cfg.collection);
+  const visibleColumns = cfg.columns.filter(c => isColumnVisible(key, c.field));
   return `
   <div class="section-head">
     <h2>${cfg.title}</h2>
-    <div style="display:flex; gap:10px;">
+    <div style="display:flex; gap:10px; position:relative;">
+      <button class="btn secondary" id="columnsBtn">⚙ Columns</button>
+      <div class="col-panel" id="columnsPanel" style="display:none;">
+        ${cfg.columns.map(c => `
+          <label class="col-panel-item">
+            <input type="checkbox" data-col-toggle="${c.field}" ${isColumnVisible(key, c.field) ? 'checked' : ''}>
+            ${c.label}
+          </label>`).join('')}
+      </div>
       ${cfg.extraAction ? `<button class="btn secondary" id="${cfg.extraAction.id}">${cfg.extraAction.label}</button>` : ''}
       <button class="btn" data-add="${key}">+ Add</button>
     </div>
   </div>
   ${rows.length ? `
   <div class="table-wrap"><table class="ledger">
-    <thead><tr>${cfg.columns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
+    <thead><tr>${visibleColumns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
     <tbody>
       ${rows.map(r => `<tr>
-        ${cfg.columns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
+        ${visibleColumns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
         <td class="row-actions">
           <button data-edit="${key}" data-id="${r.id}">Edit</button>
           <button data-del="${key}" data-id="${r.id}">Delete</button>
@@ -634,6 +666,26 @@ function wireModuleView(key) {
         syncCollection(key);
       }
     }));
+
+  const columnsBtn = root.querySelector('#columnsBtn');
+  const columnsPanel = root.querySelector('#columnsPanel');
+  columnsBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    columnsPanel.style.display = columnsPanel.style.display === 'none' ? '' : 'none';
+  });
+  columnsPanel?.querySelectorAll('[data-col-toggle]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      setColumnVisible(key, cb.dataset.colToggle, cb.checked);
+      render();
+    });
+  });
+  // Close the panel when clicking anywhere else on the page.
+  document.addEventListener('click', function closeColPanel(e) {
+    if (columnsPanel && !columnsPanel.contains(e.target) && e.target !== columnsBtn) {
+      columnsPanel.style.display = 'none';
+      document.removeEventListener('click', closeColPanel);
+    }
+  });
 
   if (key === 'investments') {
     root.querySelector('#refreshPrices')?.addEventListener('click', refreshStockPrices);
