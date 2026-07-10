@@ -201,6 +201,20 @@ table.ledger tbody tr:hover{background:rgba(232,163,61,.04);}
   padding:1px 5px; font-family:var(--font-mono); font-size:11px; color:var(--amber);
 }
 
+/* Column visibility filter */
+.col-panel{
+  position:absolute; top:calc(100% + 6px); left:0; z-index:50;
+  background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+  padding:8px; min-width:200px; max-height:280px; overflow-y:auto;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+.col-panel-item{
+  display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px;
+  font-size:12.5px; cursor:pointer;
+}
+.col-panel-item:hover{background:var(--panel);}
+.col-panel-item input{accent-color:var(--amber);}
+
 /* Responsive */
 @media (max-width: 880px){
   .sidebar{transform:translateX(-100%);}
