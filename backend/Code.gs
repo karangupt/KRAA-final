@@ -43,7 +43,7 @@ function setAppPassword() {
 
 // ---- Run this once to enable live stock prices (free key from twelvedata.com). ----
 function setStockApiKey() {
-  const apiKey = 'PASTE_YOUR_TWELVE_DATA_KEY_HERE'; // <-- sign up free at twelvedata.com, paste key, run once
+  const apiKey = 'bd58b559ab304a1f90a53feedb8faf3e'; // <-- sign up free at twelvedata.com, paste key, run once
   PropertiesService.getScriptProperties().setProperty(STOCK_API_KEY_PROPERTY, apiKey);
   Logger.log('Stock API key saved.');
 }
