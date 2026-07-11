@@ -32,6 +32,7 @@ const MODULES = {
   },
   booking: {
     title: 'Bookings', collection: 'bookings', icon: '◨',
+    hideableStatuses: ['completed', 'cancelled'],
     columns: [
       { label: 'Item', field: 'item', cls: 'name-cell' },
       { label: 'Client', field: 'clientName' },
@@ -618,13 +619,128 @@ function setColumnVisible(moduleKey, field, visible) {
   } catch (e) { console.error('Could not save column preference', e); }
 }
 
+function sumAll(rows, field = 'amount') {
+  return rows.reduce((s, r) => s + Number(r[field] || 0), 0);
+}
+function sumThisMonth(rows, field = 'amount', dateField = 'date') {
+  const mk = todayStr().slice(0, 7);
+  return rows.filter(r => (r[dateField] || '').startsWith(mk)).reduce((s, r) => s + Number(r[field] || 0), 0);
+}
+
+const MODULE_SUMMARIES = {
+  expense: [
+    { label: 'This Month', compute: rows => fmt(sumThisMonth(rows)) },
+    { label: 'Total (All Time)', compute: rows => fmt(sumAll(rows)) }
+  ],
+  personal: [
+    { label: 'This Month', compute: rows => fmt(sumThisMonth(rows)) },
+    { label: 'Total (All Time)', compute: rows => fmt(sumAll(rows)) }
+  ],
+  otherIncome: [
+    { label: 'This Month', compute: rows => fmt(sumThisMonth(rows)) },
+    { label: 'Total (All Time)', compute: rows => fmt(sumAll(rows)) }
+  ],
+  booking: [
+    { label: 'Active Bookings', compute: rows => rows.filter(r => r.status === 'confirmed' || r.status === 'pending').length },
+    { label: 'Total Booking Value', compute: rows => fmt(sumAll(rows)) }
+  ],
+  invoice: [
+    { label: 'Total Invoiced', compute: rows => fmt(sumAll(rows)) },
+    { label: 'Unpaid Count', compute: rows => rows.filter(r => r.status !== 'paid').length }
+  ],
+  payments: [
+    { label: 'Total Received', compute: rows => fmt(sumAll(rows)) }
+  ],
+  bank: [
+    { label: 'Total Balance (All Accounts)', compute: rows => fmt(sumAll(rows, 'balance')) }
+  ],
+  fdrd: [
+    { label: 'Total FD', compute: rows => fmt(rows.filter(r => r.type === 'FD').reduce((s, r) => s + Number(r.principal || 0), 0)) },
+    { label: 'Total RD', compute: rows => fmt(rows.filter(r => r.type === 'RD').reduce((s, r) => s + Number(r.principal || 0), 0)) }
+  ],
+  creditcards: [
+    { label: 'Total Due (All Cards)', compute: rows => fmt(sumAll(rows, 'dueAmount')) },
+    { label: 'Total Reward Points', compute: rows => sumAll(rows, 'rewardPoints').toLocaleString('en-IN') }
+  ],
+  insurance: [
+    { label: 'Total Sum Assured', compute: rows => fmt(sumAll(rows, 'sumAssured')) },
+    { label: 'Policies', compute: rows => rows.length }
+  ],
+  assets: [
+    { label: 'Total Assets', compute: rows => fmt(rows.filter(r => !(r.type || '').startsWith('Liability')).reduce((s, r) => s + Number(r.value || 0), 0)) },
+    { label: 'Total Liabilities', compute: rows => fmt(rows.filter(r => (r.type || '').startsWith('Liability')).reduce((s, r) => s + Number(r.value || 0), 0)) }
+  ],
+  giftcards: [
+    { label: 'Total Balance', compute: rows => fmt(sumAll(rows, 'balance')) }
+  ],
+  investments: [
+    { label: 'India Total', compute: rows => fmt(rows.filter(r => r.type !== 'US Stock').reduce((s, r) => s + Number(r.current || 0), 0)) },
+    { label: 'US Stock Total', compute: rows => '$' + rows.filter(r => r.type === 'US Stock').reduce((s, r) => s + Number(r.current || 0), 0).toLocaleString('en-IN') }
+  ]
+};
+
+// Modules that also get a month-by-month breakdown bar chart above the table.
+const MODULE_MONTHLY_BREAKDOWN = ['expense'];
+
+function renderMiniMonthlyBreakdown(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (!r.date) return;
+    const mk = r.date.slice(0, 7);
+    map[mk] = (map[mk] || 0) + Number(r.amount || 0);
+  });
+  const entries = Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+  if (!entries.length) return '';
+  const maxVal = Math.max(1, ...entries.map(([, v]) => v));
+  return `
+  <div class="card">
+    <div class="section-head"><h2>Monthly breakdown</h2></div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      ${entries.map(([mk, v]) => `
+        <div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:4px;">
+            <span style="font-family:var(--font-disp); color:var(--text); font-weight:600;">${monthLabel(mk)}</span>
+            <span>${fmt(v)}</span>
+          </div>
+          <div style="height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden;">
+            <div style="height:100%; width:${(v/maxVal*100).toFixed(1)}%; background:var(--amber);"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// Per-module "hide certain statuses" preference (e.g. hide Completed/Cancelled bookings)
+const STATUS_FILTER_KEY = 'kraa_status_filter_v1';
+function isStatusFilterOn(moduleKey) {
+  try { return JSON.parse(localStorage.getItem(STATUS_FILTER_KEY) || '{}')[moduleKey] === true; }
+  catch (e) { return false; }
+}
+function setStatusFilterOn(moduleKey, on) {
+  try {
+    const all = JSON.parse(localStorage.getItem(STATUS_FILTER_KEY) || '{}');
+    all[moduleKey] = on;
+    localStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
+
 function renderModuleView(cfg, key) {
-  const rows = Store.all(cfg.collection);
+  let rows = Store.all(cfg.collection);
+  const hideOn = cfg.hideableStatuses && isStatusFilterOn(key);
+  if (hideOn) rows = rows.filter(r => !cfg.hideableStatuses.includes(r.status));
+
   const visibleColumns = cfg.columns.filter(c => isColumnVisible(key, c.field));
+  const summaryDefs = MODULE_SUMMARIES[key];
+
   return `
   <div class="section-head">
     <h2>${cfg.title}</h2>
-    <div style="display:flex; gap:10px; position:relative;">
+    <div style="display:flex; gap:10px; position:relative; flex-wrap:wrap; align-items:center;">
+      ${cfg.hideableStatuses ? `
+        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); cursor:pointer;">
+          <input type="checkbox" id="statusFilterToggle" ${hideOn ? 'checked' : ''} style="accent-color:var(--amber);">
+          Hide ${cfg.hideableStatuses.join(' & ')}
+        </label>` : ''}
       <button class="btn secondary" id="columnsBtn">⚙ Columns</button>
       <div class="col-panel" id="columnsPanel" style="display:none;">
         ${cfg.columns.map(c => `
@@ -637,6 +753,11 @@ function renderModuleView(cfg, key) {
       <button class="btn" data-add="${key}">+ Add</button>
     </div>
   </div>
+  ${summaryDefs ? `
+  <div class="kpi-row">
+    ${summaryDefs.map(s => `<div class="kpi"><div class="kpi-label">${s.label}</div><div class="kpi-value">${s.compute(Store.all(cfg.collection))}</div></div>`).join('')}
+  </div>` : ''}
+  ${MODULE_MONTHLY_BREAKDOWN.includes(key) ? renderMiniMonthlyBreakdown(Store.all(cfg.collection)) : ''}
   ${rows.length ? `
   <div class="table-wrap"><table class="ledger">
     <thead><tr>${visibleColumns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
@@ -649,7 +770,7 @@ function renderModuleView(cfg, key) {
         </td>
       </tr>`).join('')}
     </tbody>
-  </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>No records yet. Click "+ Add" to create the first one.</div>`}`;
+  </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${hideOn ? 'Nothing to show with this filter — try unchecking "Hide" above.' : 'No records yet. Click "+ Add" to create the first one.'}</div>`}`;
 }
 
 function wireModuleView(key) {
@@ -666,6 +787,12 @@ function wireModuleView(key) {
         syncCollection(key);
       }
     }));
+
+  const statusToggle = root.querySelector('#statusFilterToggle');
+  statusToggle?.addEventListener('change', () => {
+    setStatusFilterOn(key, statusToggle.checked);
+    render();
+  });
 
   const columnsBtn = root.querySelector('#columnsBtn');
   const columnsPanel = root.querySelector('#columnsPanel');
@@ -1111,6 +1238,21 @@ async function showApp() {
   navigateTo('dashboard');
 }
 
+// Defense-in-depth against Google Sheets auto-converting date-like text into
+// real Date cells: if a value comes back as an ISO timestamp (e.g. from a
+// backend that hasn't been redeployed with the fix yet), trim it back to
+// a plain YYYY-MM-DD so date filtering/grouping across the app keeps working.
+function sanitizeIsoDates(record) {
+  const clean = { ...record };
+  Object.keys(clean).forEach(k => {
+    const v = clean[k];
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+      clean[k] = v.slice(0, 10);
+    }
+  });
+  return clean;
+}
+
 async function pullFromSheetsIntoStore() {
   const result = await SheetsAPI.pullAll();
   if (result && result.ok && result.data) {
@@ -1120,7 +1262,7 @@ async function pullFromSheetsIntoStore() {
       const current = JSON.parse(Store.exportJSON());
       Object.keys(result.data).forEach(col => {
         if (Array.isArray(result.data[col])) {
-          current[col] = result.data[col];
+          current[col] = result.data[col].map(sanitizeIsoDates);
         }
       });
       Store.importJSON(JSON.stringify(current));
