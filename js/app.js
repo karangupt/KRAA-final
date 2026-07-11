@@ -725,14 +725,45 @@ function setSelectedTab(moduleKey, tab) {
   } catch (e) {}
 }
 
+const SORT_PREF_KEY = 'kraa_sort_pref_v1';
+function getSortPref(moduleKey) {
+  try { return JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}')[moduleKey] || null; }
+  catch (e) { return null; }
+}
+function setSortPref(moduleKey, field, dir) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}');
+    all[moduleKey] = { field, dir };
+    localStorage.setItem(SORT_PREF_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
+function clearSortPref(moduleKey) {
+  try {
+    const all = JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}');
+    delete all[moduleKey];
+    localStorage.setItem(SORT_PREF_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
+
 function renderModuleView(cfg, key) {
   let rows = Store.all(cfg.collection);
   const selectedTab = cfg.statusTabs ? getSelectedTab(key) : 'all';
   if (cfg.statusTabs && selectedTab !== 'all') {
     rows = rows.filter(r => r.status === selectedTab);
   }
-  if (cfg.sortField) {
-    rows = [...rows].sort((a, b) => (a[cfg.sortField] || '9999').localeCompare(b[cfg.sortField] || '9999'));
+
+  // Sorting: an explicit column-header click (sortPref) always wins; otherwise
+  // fall back to the module's default sortField (e.g. Bookings by Start date).
+  const sortPref = getSortPref(key);
+  const activeSortField = sortPref ? sortPref.field : cfg.sortField;
+  const activeSortDir = sortPref ? sortPref.dir : 'asc';
+  if (activeSortField) {
+    rows = [...rows].sort((a, b) => {
+      const av = a[activeSortField] ?? '';
+      const bv = b[activeSortField] ?? '';
+      const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+      return activeSortDir === 'desc' ? -cmp : cmp;
+    });
   }
 
   const visibleColumns = cfg.columns.filter(c => isColumnVisible(key, c.field));
@@ -766,7 +797,7 @@ function renderModuleView(cfg, key) {
   ${MODULE_MONTHLY_BREAKDOWN.includes(key) ? renderMiniMonthlyBreakdown(Store.all(cfg.collection)) : ''}
   ${rows.length ? `
   <div class="table-wrap"><table class="ledger">
-    <thead><tr>${visibleColumns.map(c => `<th>${c.label}</th>`).join('')}<th></th></tr></thead>
+    <thead><tr>${visibleColumns.map(c => `<th class="sortable-th" data-sort-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${activeSortField === c.field ? (activeSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}<th></th></tr></thead>
     <tbody>
       ${rows.map(r => `<tr>
         ${visibleColumns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
@@ -793,6 +824,23 @@ function wireModuleView(key) {
         syncCollection(key);
       }
     }));
+
+  root.querySelectorAll('.sortable-th').forEach(th => {
+    th.addEventListener('click', () => {
+      const field = th.dataset.sortField;
+      const current = getSortPref(key);
+      if (current && current.field === field) {
+        if (current.dir === 'asc') {
+          setSortPref(key, field, 'desc');
+        } else {
+          clearSortPref(key); // third click: back to default order
+        }
+      } else {
+        setSortPref(key, field, 'asc');
+      }
+      render();
+    });
+  });
 
   root.querySelectorAll('.status-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -1037,8 +1085,12 @@ function renderSettingsView() {
 
   <div class="card" style="border-color:var(--danger);">
     <div class="section-head"><h2 style="color:var(--danger);">Danger zone</h2></div>
-    <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">This permanently deletes every record in every module on this device. Only do this if you have a backup you trust, or you genuinely want a clean slate.</p>
-    <button class="btn danger" id="resetBtn">Reset all data</button>
+    <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">This permanently deletes every record in every module on this device.</p>
+    <button class="btn secondary" id="revealDangerBtn">🔒 Show danger zone</button>
+    <div id="dangerZoneContent" style="display:none; margin-top:14px;">
+      <p style="color:var(--danger); font-size:12.5px; margin-bottom:12px;">Only do this if you have a backup you trust, or you genuinely want a clean slate. This cannot be undone.</p>
+      <button class="btn danger" id="resetBtn">Reset all data</button>
+    </div>
   </div>`;
 }
 
@@ -1109,6 +1161,13 @@ function wireSettingsView() {
     status.textContent = failed.length
       ? `Done, but ${failed.length} sheet(s) failed: ${failed.join(', ')}. Check your Apps Script deployment.`
       : `All ${done} sheets pushed successfully.`;
+  });
+
+  root.querySelector('#revealDangerBtn')?.addEventListener('click', () => {
+    const content = $('#dangerZoneContent');
+    const btn = $('#revealDangerBtn');
+    content.style.display = '';
+    btn.style.display = 'none';
   });
 
   root.querySelector('#resetBtn')?.addEventListener('click', () => {
