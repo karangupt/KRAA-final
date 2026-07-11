@@ -642,7 +642,7 @@ const MODULE_SUMMARIES = {
   ],
   booking: [
     { label: 'Active Bookings', compute: rows => rows.filter(r => r.status === 'confirmed' || r.status === 'pending').length },
-    { label: 'Total Booking Value', compute: rows => fmt(sumAll(rows)) }
+    { label: 'Total Booking Value (Completed)', compute: rows => fmt(rows.filter(r => r.status === 'completed').reduce((s,r) => s + Number(r.amount||0), 0)) }
   ],
   invoice: [
     { label: 'Total Invoiced', compute: rows => fmt(sumAll(rows)) },
