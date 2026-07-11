@@ -879,11 +879,14 @@ function renderSettingsView() {
 
   ${sheetsOn ? `
   <div class="card" style="border-left-color:var(--teal);">
-    <div class="section-head"><h2>Push local data to Google Sheets</h2></div>
+    <div class="section-head"><h2>Sync with Google Sheets</h2></div>
     <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">
-      Sheets is connected. If this device has entries that were added before connecting (or entries not yet in the Sheet), click below to push everything from this device into your Google Sheet in one go.
+      Sheets is connected. <strong style="color:var(--text);">Pull latest</strong> loads the newest data from your Sheet into this device (useful mid-session, e.g. after editing from another device). <strong style="color:var(--text);">Push all local data</strong> sends everything on this device up to the Sheet — use this once, right after connecting Sheets for the first time, or if this device has entries the Sheet doesn't.
     </p>
-    <button class="btn" id="pushAllBtn">Push all local data to Sheets</button>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn secondary" id="pullAllBtn">↓ Pull latest from Sheets</button>
+      <button class="btn" id="pushAllBtn">↑ Push all local data to Sheets</button>
+    </div>
     <div id="pushAllStatus" style="margin-top:10px; font-size:12.5px; color:var(--muted);"></div>
   </div>
   ` : ''}
@@ -939,6 +942,19 @@ function wireSettingsView() {
       }
     };
     reader.readAsText(file);
+  });
+
+  root.querySelector('#pullAllBtn')?.addEventListener('click', async () => {
+    const btn = $('#pullAllBtn');
+    const status = $('#pushAllStatus');
+    btn.disabled = true;
+    btn.textContent = 'Pulling...';
+    status.textContent = 'Fetching latest data from Google Sheets...';
+    await pullFromSheetsIntoStore();
+    btn.disabled = false;
+    btn.textContent = '↓ Pull latest from Sheets';
+    status.textContent = 'Done — this device now has the latest data from your Sheet.';
+    render();
   });
 
   root.querySelector('#pushAllBtn')?.addEventListener('click', async () => {
@@ -1081,12 +1097,37 @@ function initChrome() {
   $('#todayChip').textContent = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
 }
 
-function showApp() {
+async function showApp() {
+  if (SheetsAPI.isConfigured()) {
+    const sub = document.querySelector('#loginScreen .login-card .login-sub, #loginScreen p');
+    if (sub) sub.textContent = 'Syncing your data from Google Sheets...';
+    await pullFromSheetsIntoStore();
+  }
+
   $('#loginScreen').style.display = 'none';
   $('#appRoot').style.display = '';
   initChrome();
   checkSyncStatus();
   navigateTo('dashboard');
+}
+
+async function pullFromSheetsIntoStore() {
+  const result = await SheetsAPI.pullAll();
+  if (result && result.ok && result.data) {
+    try {
+      // Only overwrite collections that actually came back from the Sheet,
+      // so anything not yet pushed anywhere stays untouched locally.
+      const current = JSON.parse(Store.exportJSON());
+      Object.keys(result.data).forEach(col => {
+        if (Array.isArray(result.data[col])) {
+          current[col] = result.data[col];
+        }
+      });
+      Store.importJSON(JSON.stringify(current));
+    } catch (e) {
+      console.error('Could not merge Sheets data into local store', e);
+    }
+  }
 }
 
 function initLogin() {
@@ -1154,7 +1195,7 @@ function wireLoginForm() {
     try {
       const result = await Auth.login(pw);
       if (result.ok) {
-        showApp();
+        await showApp();
       } else {
         errorBox.textContent = result.error || 'Incorrect password.';
         $('#loginPassword').value = '';
@@ -1191,12 +1232,12 @@ function showBootError(err) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   try {
     initLogin();
     document.getElementById('logoutBtn')?.addEventListener('click', () => Auth.logout());
     if (Auth.isLoggedIn()) {
-      showApp();
+      await showApp();
     }
     // else: login/setup screen stays visible until submitted
   } catch (err) {
