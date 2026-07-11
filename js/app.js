@@ -4,6 +4,14 @@ const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 const fmt = n => '₹' + (Number(n) || 0).toLocaleString('en-IN');
 
+// Display dates as DD-MM-YYYY (Indian convention). Internally everything
+// still stores/sorts as YYYY-MM-DD — this only changes what's shown.
+const fmtDate = v => {
+  if (!v || !/^\d{4}-\d{2}-\d{2}/.test(v)) return v || '—';
+  const [y, m, d] = v.slice(0, 10).split('-');
+  return `${d}-${m}-${y}`;
+};
+
 const fmtByType = (v, type) => (type === 'US Stock' ? '$' : '₹') + (Number(v) || 0).toLocaleString('en-IN');
 
 // Account types that behave like long-term/locked investments — not
@@ -38,8 +46,8 @@ const MODULES = {
       { label: 'Item', field: 'item', cls: 'name-cell' },
       { label: 'Client', field: 'clientName' },
       { label: 'Location', field: 'location' },
-      { label: 'Start', field: 'startDate' },
-      { label: 'End', field: 'endDate' },
+      { label: 'Start', field: 'startDate', render: fmtDate },
+      { label: 'End', field: 'endDate', render: fmtDate },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
       { label: 'Status', field: 'status', render: v => tagFor(v) }
     ],
@@ -74,7 +82,7 @@ const MODULES = {
   expense: {
     title: 'Expenses', collection: 'expenses', icon: '◒',
     columns: [
-      { label: 'Date', field: 'date' },
+      { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Category', field: 'category' },
       { label: 'Description', field: 'desc', cls: 'name-cell' },
       { label: 'Paid Via', field: 'paymentMode', render: (v, row) => {
@@ -97,7 +105,7 @@ const MODULES = {
     title: 'Quotation & Invoice', collection: 'invoices', icon: '◪',
     columns: [
       { label: 'Number', field: 'number', cls: 'name-cell' },
-      { label: 'Date', field: 'date' },
+      { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
       { label: 'Status', field: 'status', render: v => tagFor(v) }
     ],
@@ -112,7 +120,7 @@ const MODULES = {
   payments: {
     title: 'Payments', collection: 'payments', icon: '◓',
     columns: [
-      { label: 'Date', field: 'date' },
+      { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Invoice', field: 'invoiceId' },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
       { label: 'Mode', field: 'mode' }
@@ -227,7 +235,7 @@ const MODULES = {
       { label: 'Card', field: 'cardName', cls: 'name-cell' },
       { label: 'Bank', field: 'bank' },
       { label: 'Due Amount', field: 'dueAmount', render: v => fmt(v) },
-      { label: 'Due Date', field: 'dueDate' },
+      { label: 'Due Date', field: 'dueDate', render: fmtDate },
       { label: 'Tracked Spend', field: '_spend', render: (v, row) => fmt(Store.all('expenses').filter(e => e.paymentMode === 'Credit Card' && e.creditCardId === row.id).reduce((s, e) => s + Number(e.amount || 0), 0)) },
       { label: 'Reward Points', field: 'rewardPoints' }
     ],
@@ -246,7 +254,7 @@ const MODULES = {
     columns: [
       { label: 'Platform', field: 'platform', cls: 'name-cell' },
       { label: 'Balance', field: 'balance', render: v => fmt(v) },
-      { label: 'Last Updated', field: 'lastUpdated' }
+      { label: 'Last Updated', field: 'lastUpdated', render: fmtDate }
     ],
     fields: [
       { name: 'platform', label: 'Platform', type: 'select', options: ['Amazon Pay Balance','Flipkart Gift Card','Amazon Gift Card','Paytm Wallet','Other'] },
@@ -273,7 +281,7 @@ const MODULES = {
     columns: [
       { label: 'Category', field: 'category', cls: 'name-cell' },
       { label: 'Frequency', field: 'frequency' },
-      { label: 'Date', field: 'date' },
+      { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Amount', field: 'amount', render: v => fmt(v) }
     ],
     fields: [
@@ -286,7 +294,7 @@ const MODULES = {
   otherIncome: {
     title: 'Other Income', collection: 'otherIncome', icon: '◓',
     columns: [
-      { label: 'Date', field: 'date' },
+      { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Source', field: 'type', cls: 'name-cell' },
       { label: 'Description', field: 'description' },
       { label: 'Amount', field: 'amount', render: v => fmt(v) }
@@ -305,8 +313,8 @@ const MODULES = {
       { label: 'Company', field: 'insuranceCompany', cls: 'name-cell' },
       { label: 'Policy No.', field: 'policyNumber' },
       { label: 'Sum Assured', field: 'sumAssured', render: v => fmt(v) },
-      { label: 'Renewal Date', field: 'renewalDate' },
-      { label: 'Maturity Date', field: 'maturityDate' }
+      { label: 'Renewal Date', field: 'renewalDate', render: fmtDate },
+      { label: 'Maturity Date', field: 'maturityDate', render: fmtDate }
     ],
     fields: [
       { name: 'type', label: 'Insurance type', type: 'select', options: ['Term Plan','Life Insurance','Health Insurance','Car Insurance','Scooter Insurance','Other'], required: true },
@@ -331,7 +339,7 @@ const MODULES = {
       { label: 'Category', field: 'category' },
       { label: 'Title', field: 'title' },
       { label: 'Link', field: 'driveLink', render: v => v ? `<a href="${v}" target="_blank" rel="noopener" style="color:var(--amber);">Open ↗</a>` : '—' },
-      { label: 'Added On', field: 'dateAdded' }
+      { label: 'Added On', field: 'dateAdded', render: fmtDate }
     ],
     fields: [
       { name: 'familyMember', label: 'Family member', type: 'select', options: ['Karan Gupta','Rukmini Gupta','Aahana Gupta','Aarav Gupta','Shared / Family'], required: true },
@@ -347,7 +355,7 @@ const MODULES = {
     columns: [
       { label: 'Title', field: 'title', cls: 'name-cell' },
       { label: 'For', field: 'forWhom' },
-      { label: 'Date', field: 'dateAdded' }
+      { label: 'Date', field: 'dateAdded', render: fmtDate }
     ],
     fields: [
       { name: 'title', label: 'Title', type: 'text', required: true },
@@ -569,7 +577,7 @@ function renderDashboard() {
     <div class="kpi" style="border-left-color:${creditCardDue > 0 ? 'var(--danger)' : 'var(--amber)'};">
       <div class="kpi-label">Credit Card Due</div>
       <div class="kpi-value" style="color:${creditCardDue > 0 ? 'var(--danger)' : 'inherit'}">${fmt(creditCardDue)}</div>
-      <div class="kpi-sub">${nearestCardDue ? 'Next due: ' + nearestCardDue.dueDate : 'No dues logged'}</div>
+      <div class="kpi-sub">${nearestCardDue ? 'Next due: ' + fmtDate(nearestCardDue.dueDate) : 'No dues logged'}</div>
     </div>
   </div>
 
@@ -587,7 +595,7 @@ function renderDashboard() {
       <tbody>
         ${recentBookings.map(b => `<tr>
           <td class="name-cell">${b.item}</td>
-          <td>${b.startDate || ''} → ${b.endDate || ''}</td>
+          <td>${fmtDate(b.startDate)} → ${fmtDate(b.endDate)}</td>
           <td>${fmt(b.amount)}</td>
           <td>${tagFor(b.status)}</td>
         </tr>`).join('')}
