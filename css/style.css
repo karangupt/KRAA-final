@@ -201,6 +201,8 @@ table.ledger tbody tr:hover{background:rgba(232,163,61,.04);}
   padding:1px 5px; font-family:var(--font-mono); font-size:11px; color:var(--amber);
 }
 
+table.ledger thead th.sortable-th:hover{color:var(--amber);}
+
 /* Status filter tabs */
 .status-tab{
   background:var(--panel); border:1px solid var(--line); color:var(--muted);
