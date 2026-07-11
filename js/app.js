@@ -32,7 +32,8 @@ const MODULES = {
   },
   booking: {
     title: 'Bookings', collection: 'bookings', icon: '◨',
-    hideableStatuses: ['completed', 'cancelled'],
+    statusTabs: ['pending', 'confirmed', 'completed', 'cancelled'],
+    sortField: 'startDate',
     columns: [
       { label: 'Item', field: 'item', cls: 'name-cell' },
       { label: 'Client', field: 'clientName' },
@@ -711,23 +712,28 @@ function renderMiniMonthlyBreakdown(rows) {
 }
 
 // Per-module "hide certain statuses" preference (e.g. hide Completed/Cancelled bookings)
-const STATUS_FILTER_KEY = 'kraa_status_filter_v1';
-function isStatusFilterOn(moduleKey) {
-  try { return JSON.parse(localStorage.getItem(STATUS_FILTER_KEY) || '{}')[moduleKey] === true; }
-  catch (e) { return false; }
+const STATUS_TAB_KEY = 'kraa_status_tab_v1';
+function getSelectedTab(moduleKey) {
+  try { return JSON.parse(localStorage.getItem(STATUS_TAB_KEY) || '{}')[moduleKey] || 'all'; }
+  catch (e) { return 'all'; }
 }
-function setStatusFilterOn(moduleKey, on) {
+function setSelectedTab(moduleKey, tab) {
   try {
-    const all = JSON.parse(localStorage.getItem(STATUS_FILTER_KEY) || '{}');
-    all[moduleKey] = on;
-    localStorage.setItem(STATUS_FILTER_KEY, JSON.stringify(all));
+    const all = JSON.parse(localStorage.getItem(STATUS_TAB_KEY) || '{}');
+    all[moduleKey] = tab;
+    localStorage.setItem(STATUS_TAB_KEY, JSON.stringify(all));
   } catch (e) {}
 }
 
 function renderModuleView(cfg, key) {
   let rows = Store.all(cfg.collection);
-  const hideOn = cfg.hideableStatuses && isStatusFilterOn(key);
-  if (hideOn) rows = rows.filter(r => !cfg.hideableStatuses.includes(r.status));
+  const selectedTab = cfg.statusTabs ? getSelectedTab(key) : 'all';
+  if (cfg.statusTabs && selectedTab !== 'all') {
+    rows = rows.filter(r => r.status === selectedTab);
+  }
+  if (cfg.sortField) {
+    rows = [...rows].sort((a, b) => (a[cfg.sortField] || '9999').localeCompare(b[cfg.sortField] || '9999'));
+  }
 
   const visibleColumns = cfg.columns.filter(c => isColumnVisible(key, c.field));
   const summaryDefs = MODULE_SUMMARIES[key];
@@ -736,11 +742,6 @@ function renderModuleView(cfg, key) {
   <div class="section-head">
     <h2>${cfg.title}</h2>
     <div style="display:flex; gap:10px; position:relative; flex-wrap:wrap; align-items:center;">
-      ${cfg.hideableStatuses ? `
-        <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); cursor:pointer;">
-          <input type="checkbox" id="statusFilterToggle" ${hideOn ? 'checked' : ''} style="accent-color:var(--amber);">
-          Hide ${cfg.hideableStatuses.join(' & ')}
-        </label>` : ''}
       <button class="btn secondary" id="columnsBtn">⚙ Columns</button>
       <div class="col-panel" id="columnsPanel" style="display:none;">
         ${cfg.columns.map(c => `
@@ -753,6 +754,11 @@ function renderModuleView(cfg, key) {
       <button class="btn" data-add="${key}">+ Add</button>
     </div>
   </div>
+  ${cfg.statusTabs ? `
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+    <button class="status-tab ${selectedTab === 'all' ? 'active' : ''}" data-tab="all">All</button>
+    ${cfg.statusTabs.map(st => `<button class="status-tab ${selectedTab === st ? 'active' : ''}" data-tab="${st}">${st.charAt(0).toUpperCase() + st.slice(1)}</button>`).join('')}
+  </div>` : ''}
   ${summaryDefs ? `
   <div class="kpi-row">
     ${summaryDefs.map(s => `<div class="kpi"><div class="kpi-label">${s.label}</div><div class="kpi-value">${s.compute(Store.all(cfg.collection))}</div></div>`).join('')}
@@ -770,7 +776,7 @@ function renderModuleView(cfg, key) {
         </td>
       </tr>`).join('')}
     </tbody>
-  </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${hideOn ? 'Nothing to show with this filter — try unchecking "Hide" above.' : 'No records yet. Click "+ Add" to create the first one.'}</div>`}`;
+  </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${selectedTab !== 'all' ? `Nothing with status "${selectedTab}" — try the "All" tab above.` : 'No records yet. Click "+ Add" to create the first one.'}</div>`}`;
 }
 
 function wireModuleView(key) {
@@ -788,10 +794,11 @@ function wireModuleView(key) {
       }
     }));
 
-  const statusToggle = root.querySelector('#statusFilterToggle');
-  statusToggle?.addEventListener('change', () => {
-    setStatusFilterOn(key, statusToggle.checked);
-    render();
+  root.querySelectorAll('.status-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      setSelectedTab(key, tab.dataset.tab);
+      render();
+    });
   });
 
   const columnsBtn = root.querySelector('#columnsBtn');
