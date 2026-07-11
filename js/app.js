@@ -1254,7 +1254,16 @@ function sanitizeIsoDates(record) {
   Object.keys(clean).forEach(k => {
     const v = clean[k];
     if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
-      clean[k] = v.slice(0, 10);
+      // This is a UTC timestamp that started life as a plain date (e.g.
+      // "2026-07-14") which Sheets auto-converted into a Date cell at IST
+      // midnight. Naively slicing the UTC string shifts the date by a day
+      // — convert back to the IST calendar date properly instead.
+      try {
+        const d = new Date(v);
+        clean[k] = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // en-CA -> YYYY-MM-DD
+      } catch (e) {
+        clean[k] = v.slice(0, 10); // fallback, better than nothing
+      }
     }
   });
   return clean;
