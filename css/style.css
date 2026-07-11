@@ -201,6 +201,14 @@ table.ledger tbody tr:hover{background:rgba(232,163,61,.04);}
   padding:1px 5px; font-family:var(--font-mono); font-size:11px; color:var(--amber);
 }
 
+/* Status filter tabs */
+.status-tab{
+  background:var(--panel); border:1px solid var(--line); color:var(--muted);
+  padding:7px 14px; border-radius:20px; font-size:12.5px; font-weight:600; cursor:pointer;
+}
+.status-tab:hover{color:var(--text); border-color:var(--amber-dim);}
+.status-tab.active{background:var(--amber-dim); border-color:var(--amber); color:var(--amber);}
+
 /* Column visibility filter */
 .col-panel{
   position:absolute; top:calc(100% + 6px); left:0; z-index:50;
