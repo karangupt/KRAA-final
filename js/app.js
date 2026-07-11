@@ -121,7 +121,11 @@ const MODULES = {
     title: 'Payments', collection: 'payments', icon: '◓',
     columns: [
       { label: 'Date', field: 'date', render: fmtDate },
-      { label: 'Invoice', field: 'invoiceId' },
+      { label: 'Invoice', field: 'invoiceId', render: v => {
+          if (!v) return '—';
+          const inv = Store.get('invoices', v);
+          return inv ? inv.number : '—';
+        } },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
       { label: 'Mode', field: 'mode' }
     ],
