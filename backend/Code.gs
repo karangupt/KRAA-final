@@ -43,7 +43,7 @@ function setAppPassword() {
 
 // ---- Run this once to enable live stock prices (free key from twelvedata.com). ----
 function setStockApiKey() {
-  const apiKey = 'bd58b559ab304a1f90a53feedb8faf3e'; // <-- sign up free at twelvedata.com, paste key, run once
+  const apiKey = 'PASTE_YOUR_TWELVE_DATA_KEY_HERE'; // <-- sign up free at twelvedata.com, paste key, run once
   PropertiesService.getScriptProperties().setProperty(STOCK_API_KEY_PROPERTY, apiKey);
   Logger.log('Stock API key saved.');
 }
@@ -156,13 +156,24 @@ function pushCollection(collection, records) {
 function pullAllCollections() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const result = {};
+  const tz = Session.getScriptTimeZone() || 'Asia/Kolkata';
   ss.getSheets().forEach(sheet => {
     const values = sheet.getDataRange().getValues();
     if (values.length < 2) { result[sheet.getName()] = []; return; }
     const headers = values[0];
     const rows = values.slice(1).map(row => {
       const obj = {};
-      headers.forEach((h, i) => obj[h] = row[i]);
+      headers.forEach((h, i) => {
+        let v = row[i];
+        // Google Sheets auto-converts date-like text (e.g. "2026-07-14") into
+        // an actual Date cell. Left as-is, JSON serialization turns that into
+        // a UTC timestamp like "2026-07-14T18:30:00.000Z" — wrong date once
+        // read back in IST. Convert it back to a clean YYYY-MM-DD string.
+        if (v instanceof Date) {
+          v = Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+        }
+        obj[h] = v;
+      });
       return obj;
     });
     result[sheet.getName()] = rows;
