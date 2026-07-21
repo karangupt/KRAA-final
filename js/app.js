@@ -118,8 +118,14 @@ const MODULES = {
       { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
       { label: 'Status', field: 'status', render: v => tagFor(v) },
-      { label: 'Paid', field: '_paid', render: (v, row) => fmt(invoicePaidSoFar(row.id)) },
+      { label: 'Paid', field: '_paid', render: (v, row) => {
+          if (row.status === 'paid') return fmt(row.amount);
+          if (row.status === 'unpaid') return fmt(0);
+          return fmt(invoicePaidSoFar(row.id)); // partial
+        } },
       { label: 'Pending', field: '_pending', render: (v, row) => {
+          if (row.status === 'paid') return fmt(0);
+          if (row.status === 'unpaid') return fmt(row.amount);
           const pending = Number(row.amount || 0) - invoicePaidSoFar(row.id);
           return fmt(pending > 0 ? pending : 0);
         } }
@@ -427,6 +433,7 @@ function tagFor(status) {
 let currentView = 'dashboard';
 let editingContext = null; // { moduleKey, id }
 let cachedUsdInrRate = null; // set once user clicks "Convert to ₹" on the dashboard
+let reorderSelection = {}; // { [moduleKey]: selectedRowId } — for the radio-select reorder UI
 
 /* ---------- Router ---------- */
 function navigateTo(view) {
@@ -821,6 +828,14 @@ function renderModuleView(cfg, key) {
   <div class="section-head">
     <h2>${cfg.title}</h2>
     <div style="display:flex; gap:10px; position:relative; flex-wrap:wrap; align-items:center;">
+      ${rows.length > 1 ? `
+        <div style="display:flex; gap:4px; align-items:center; border:1px solid var(--line); border-radius:8px; padding:4px 6px;">
+          <span style="font-size:11px; color:var(--muted); margin-right:4px;">Reorder:</span>
+          <button class="btn secondary" id="moveTopBtn" title="Move selected to top" ${!reorderSelection[key] ? 'disabled' : ''}>⤒</button>
+          <button class="btn secondary" id="moveUpBtn" title="Move selected up" ${!reorderSelection[key] ? 'disabled' : ''}>↑</button>
+          <button class="btn secondary" id="moveDownBtn" title="Move selected down" ${!reorderSelection[key] ? 'disabled' : ''}>↓</button>
+          <button class="btn secondary" id="moveBottomBtn" title="Move selected to bottom" ${!reorderSelection[key] ? 'disabled' : ''}>⤓</button>
+        </div>` : ''}
       <button class="btn secondary" id="columnsBtn">⚙ Columns</button>
       <div class="col-panel" id="columnsPanel" style="display:none;">
         ${cfg.columns.map(c => `
@@ -845,20 +860,19 @@ function renderModuleView(cfg, key) {
   ${MODULE_MONTHLY_BREAKDOWN.includes(key) ? renderMiniMonthlyBreakdown(Store.all(cfg.collection)) : ''}
   ${rows.length ? `
   <div class="table-wrap"><table class="ledger">
-    <thead><tr>${visibleColumns.map(c => `<th class="sortable-th" data-sort-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${activeSortField === c.field ? (activeSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}<th></th></tr></thead>
+    <thead><tr>${rows.length > 1 ? '<th style="width:30px;"></th>' : ''}${visibleColumns.map(c => `<th class="sortable-th" data-sort-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${activeSortField === c.field ? (activeSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}<th></th></tr></thead>
     <tbody>
       ${rows.map(r => `<tr>
+        ${rows.length > 1 ? `<td><input type="radio" name="reorderRadio" data-reorder-key="${key}" value="${r.id}" ${reorderSelection[key] === r.id ? 'checked' : ''} style="accent-color:var(--amber);"></td>` : ''}
         ${visibleColumns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
         <td class="row-actions">
-          <button data-move="top" data-move-key="${key}" data-id="${r.id}" title="Move to top">⤒</button>
-          <button data-move="bottom" data-move-key="${key}" data-id="${r.id}" title="Move to bottom">⤓</button>
           <button data-edit="${key}" data-id="${r.id}">Edit</button>
           <button data-del="${key}" data-id="${r.id}">Delete</button>
         </td>
       </tr>`).join('')}
     </tbody>
   </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${selectedTab !== 'all' ? `Nothing with status "${selectedTab}" — try the "All" tab above.` : 'No records yet. Click "+ Add" to create the first one.'}</div>`}
-  ${rows.length > 1 ? `<p style="color:var(--muted); font-size:11.5px; margin-top:10px;">Use ⤒ / ⤓ to reorder rows manually — reordering clears any active column sort so your order shows.</p>` : ''}`;
+  ${rows.length > 1 ? `<p style="color:var(--muted); font-size:11.5px; margin-top:10px;">Select a row with the radio button, then use the Reorder ⤒ ↑ ↓ ⤓ controls above to move it — this clears any active column sort so your order shows.</p>` : ''}`;
 }
 
 function wireModuleView(key) {
@@ -876,13 +890,24 @@ function wireModuleView(key) {
       }
     }));
 
-  root.querySelectorAll(`[data-move]`).forEach(b =>
-    b.addEventListener('click', () => {
-      Store.moveItem(MODULES[key].collection, b.dataset.id, b.dataset.move);
-      setSortPref(key, '__manual__', 'asc'); // reveal manual order immediately
+  root.querySelectorAll('[data-reorder-key]').forEach(radio =>
+    radio.addEventListener('change', () => {
+      reorderSelection[key] = radio.value;
       render();
-      syncCollection(key);
     }));
+
+  const doMove = (direction) => {
+    const selectedId = reorderSelection[key];
+    if (!selectedId) return;
+    Store.moveItem(MODULES[key].collection, selectedId, direction);
+    setSortPref(key, '__manual__', 'asc'); // reveal manual order immediately
+    render();
+    syncCollection(key);
+  };
+  root.querySelector('#moveTopBtn')?.addEventListener('click', () => doMove('top'));
+  root.querySelector('#moveUpBtn')?.addEventListener('click', () => doMove('up'));
+  root.querySelector('#moveDownBtn')?.addEventListener('click', () => doMove('down'));
+  root.querySelector('#moveBottomBtn')?.addEventListener('click', () => doMove('bottom'));
 
   root.querySelectorAll('.sortable-th').forEach(th => {
     th.addEventListener('click', () => {
