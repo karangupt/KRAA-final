@@ -145,5 +145,19 @@ const Store = (() => {
     _save(data);
   }
 
-  return { all, get, add, update, remove, reset, exportJSON, importJSON };
+  function moveItem(collection, id, direction) {
+    const arr = data[collection] || [];
+    const idx = arr.findIndex(r => r.id === id);
+    if (idx === -1) return;
+    let newIdx = idx;
+    if (direction === 'top') newIdx = 0;
+    else if (direction === 'bottom') newIdx = arr.length - 1;
+    else if (direction === 'up') newIdx = Math.max(0, idx - 1);
+    else if (direction === 'down') newIdx = Math.min(arr.length - 1, idx + 1);
+    const [item] = arr.splice(idx, 1);
+    arr.splice(newIdx, 0, item);
+    _save(data);
+  }
+
+  return { all, get, add, update, remove, reset, exportJSON, importJSON, moveItem };
 })();
