@@ -20,7 +20,7 @@
    fully usable, just single-device.
 */
 
-const SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyBYRHfdkl8LmPgp2rT3ancUwjsCT_y1IfZBJzN26HJOYqsP24qsz7WfYPxzjkoSgEB6Q/exec'; // <-- paste your Apps Script Web App URL here
+const SHEETS_WEB_APP_URL = ''; // <-- paste your Apps Script Web App URL here
 
 const SheetsAPI = (() => {
   const isConfigured = () => !!SHEETS_WEB_APP_URL;
@@ -103,5 +103,19 @@ const SheetsAPI = (() => {
     }
   }
 
-  return { isConfigured, ping, verifyToken, pullAll, pushCollection, fetchStockPrice, fetchFxRate };
+  async function backupToDrive(dataObj) {
+    if (!isConfigured()) return { ok: false, error: 'Sheets not connected' };
+    try {
+      const res = await fetch(SHEETS_WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'backupToDrive', data: dataObj, token: token() })
+      });
+      return await res.json();
+    } catch (e) {
+      return { ok: false, error: 'Network error' };
+    }
+  }
+
+  return { isConfigured, ping, verifyToken, pullAll, pushCollection, fetchStockPrice, fetchFxRate, backupToDrive };
 })();
