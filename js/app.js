@@ -21,17 +21,25 @@ const LOCKED_ACCOUNT_TYPES = ['Sukanya Samriddhi', 'Minor Account', 'Spouse Acco
 const todayStr = () => new Date().toISOString().slice(0,10);
 
 /* ---------- Module configs: drives generic table + form rendering ---------- */
+function invoicePaidSoFar(invoiceId) {
+  return Store.all('payments')
+    .filter(p => p.invoiceId === invoiceId)
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+}
+
 const MODULES = {
   customer: {
     title: 'Customers', collection: 'customers', icon: '◔',
     columns: [
       { label: 'Name', field: 'name', cls: 'name-cell' },
+      { label: 'Company', field: 'companyName' },
       { label: 'Phone', field: 'phone' },
       { label: 'Email', field: 'email' },
       { label: 'GST No.', field: 'gst' }
     ],
     fields: [
       { name: 'name', label: 'Customer name', type: 'text', required: true },
+      { name: 'companyName', label: 'Company name', type: 'text' },
       { name: 'phone', label: 'Phone', type: 'text' },
       { name: 'email', label: 'Email', type: 'text' },
       { name: 'gst', label: 'GST number', type: 'text' },
@@ -45,6 +53,7 @@ const MODULES = {
     columns: [
       { label: 'Item', field: 'item', cls: 'name-cell' },
       { label: 'Client', field: 'clientName' },
+      { label: 'Company', field: 'companyName' },
       { label: 'Location', field: 'location' },
       { label: 'Start', field: 'startDate', render: fmtDate },
       { label: 'End', field: 'endDate', render: fmtDate },
@@ -54,6 +63,7 @@ const MODULES = {
     fields: [
       { name: 'item', label: 'Equipment / item', type: 'text', required: true },
       { name: 'clientName', label: 'Client name', type: 'text' },
+      { name: 'companyName', label: 'Company name', type: 'text' },
       { name: 'location', label: 'Location / venue', type: 'text' },
       { name: 'customerId', label: 'Linked customer record (optional)', type: 'select', source: 'customers', optLabel: 'name' },
       { name: 'startDate', label: 'Start date', type: 'date' },
@@ -107,15 +117,39 @@ const MODULES = {
       { label: 'Number', field: 'number', cls: 'name-cell' },
       { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
-      { label: 'Status', field: 'status', render: v => tagFor(v) }
+      { label: 'Status', field: 'status', render: v => tagFor(v) },
+      { label: 'Paid', field: '_paid', render: (v, row) => fmt(invoicePaidSoFar(row.id)) },
+      { label: 'Pending', field: '_pending', render: (v, row) => {
+          const pending = Number(row.amount || 0) - invoicePaidSoFar(row.id);
+          return fmt(pending > 0 ? pending : 0);
+        } }
     ],
     fields: [
       { name: 'number', label: 'Invoice number', type: 'text', required: true },
       { name: 'customerId', label: 'Customer', type: 'select', source: 'customers', optLabel: 'name' },
       { name: 'date', label: 'Date', type: 'date' },
       { name: 'amount', label: 'Amount (₹)', type: 'number' },
-      { name: 'status', label: 'Status', type: 'select', options: ['unpaid','partial','paid'] }
-    ]
+      { name: 'status', label: 'Status', type: 'select', options: ['unpaid','partial','paid'] },
+      { name: 'paidAmount', label: 'Amount paid so far (₹)', type: 'number', showIf: { field: 'status', equals: 'partial' } }
+    ],
+    onSave: (saved, previous) => {
+      const wasAlreadyPaid = previous && previous.status === 'paid';
+      if (saved.status === 'paid' && !wasAlreadyPaid) {
+        const alreadyPaid = invoicePaidSoFar(saved.id);
+        const remaining = Number(saved.amount || 0) - alreadyPaid;
+        if (remaining > 0) {
+          Store.add('payments', { invoiceId: saved.id, date: todayStr(), amount: remaining, mode: 'Bank Transfer' });
+          syncCollection('payments');
+        }
+      } else if (saved.status === 'partial' && saved.paidAmount) {
+        const alreadyPaid = invoicePaidSoFar(saved.id);
+        const diff = Number(saved.paidAmount || 0) - alreadyPaid;
+        if (diff > 0) {
+          Store.add('payments', { invoiceId: saved.id, date: todayStr(), amount: diff, mode: 'Bank Transfer' });
+          syncCollection('payments');
+        }
+      }
+    }
   },
   payments: {
     title: 'Payments', collection: 'payments', icon: '◓',
@@ -219,13 +253,15 @@ const MODULES = {
     title: 'Vendors', collection: 'vendors', icon: '◔',
     columns: [
       { label: 'Vendor', field: 'name', cls: 'name-cell' },
+      { label: 'Company', field: 'companyName' },
       { label: 'Contact person', field: 'contactPerson' },
       { label: 'Phone', field: 'phone' },
       { label: 'Email', field: 'email' },
       { label: 'Category', field: 'category' }
     ],
     fields: [
-      { name: 'name', label: 'Vendor / company name', type: 'text', required: true },
+      { name: 'name', label: 'Vendor name', type: 'text', required: true },
+      { name: 'companyName', label: 'Registered company name (if different)', type: 'text' },
       { name: 'contactPerson', label: 'Contact person', type: 'text' },
       { name: 'phone', label: 'Phone', type: 'text' },
       { name: 'email', label: 'Email', type: 'text' },
@@ -767,7 +803,7 @@ function renderModuleView(cfg, key) {
   // Sorting: an explicit column-header click (sortPref) always wins; otherwise
   // fall back to the module's default sortField (e.g. Bookings by Start date).
   const sortPref = getSortPref(key);
-  const activeSortField = sortPref ? sortPref.field : cfg.sortField;
+  const activeSortField = sortPref ? (sortPref.field === '__manual__' ? null : sortPref.field) : cfg.sortField;
   const activeSortDir = sortPref ? sortPref.dir : 'asc';
   if (activeSortField) {
     rows = [...rows].sort((a, b) => {
@@ -814,12 +850,15 @@ function renderModuleView(cfg, key) {
       ${rows.map(r => `<tr>
         ${visibleColumns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
         <td class="row-actions">
+          <button data-move="top" data-move-key="${key}" data-id="${r.id}" title="Move to top">⤒</button>
+          <button data-move="bottom" data-move-key="${key}" data-id="${r.id}" title="Move to bottom">⤓</button>
           <button data-edit="${key}" data-id="${r.id}">Edit</button>
           <button data-del="${key}" data-id="${r.id}">Delete</button>
         </td>
       </tr>`).join('')}
     </tbody>
-  </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${selectedTab !== 'all' ? `Nothing with status "${selectedTab}" — try the "All" tab above.` : 'No records yet. Click "+ Add" to create the first one.'}</div>`}`;
+  </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${selectedTab !== 'all' ? `Nothing with status "${selectedTab}" — try the "All" tab above.` : 'No records yet. Click "+ Add" to create the first one.'}</div>`}
+  ${rows.length > 1 ? `<p style="color:var(--muted); font-size:11.5px; margin-top:10px;">Use ⤒ / ⤓ to reorder rows manually — reordering clears any active column sort so your order shows.</p>` : ''}`;
 }
 
 function wireModuleView(key) {
@@ -835,6 +874,14 @@ function wireModuleView(key) {
         render();
         syncCollection(key);
       }
+    }));
+
+  root.querySelectorAll(`[data-move]`).forEach(b =>
+    b.addEventListener('click', () => {
+      Store.moveItem(MODULES[key].collection, b.dataset.id, b.dataset.move);
+      setSortPref(key, '__manual__', 'asc'); // reveal manual order immediately
+      render();
+      syncCollection(key);
     }));
 
   root.querySelectorAll('.sortable-th').forEach(th => {
@@ -1068,7 +1115,9 @@ function renderSettingsView() {
       <label class="btn secondary" style="cursor:pointer;">Restore from file
         <input type="file" id="restoreFile" accept="application/json" style="display:none;">
       </label>
+      ${sheetsOn ? `<button class="btn secondary" id="driveBackupBtn">📁 Backup to Google Drive</button>` : ''}
     </div>
+    ${sheetsOn ? `<div id="driveBackupStatus" style="margin-top:10px; font-size:12.5px; color:var(--muted);"></div>` : `<p style="color:var(--muted); font-size:11.5px; margin-top:10px;">Backing up straight to Google Drive needs Sheets connected first — see README Part 2.</p>`}
   </div>
 
   ${sheetsOn ? `
@@ -1120,6 +1169,23 @@ function wireSettingsView() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  });
+
+  root.querySelector('#driveBackupBtn')?.addEventListener('click', async () => {
+    const btn = $('#driveBackupBtn');
+    const status = $('#driveBackupStatus');
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    status.textContent = 'Saving backup to your Google Drive...';
+    const data = JSON.parse(Store.exportJSON());
+    const result = await SheetsAPI.backupToDrive(data);
+    btn.disabled = false;
+    btn.textContent = '📁 Backup to Google Drive';
+    if (result && result.ok) {
+      status.innerHTML = `Saved as <strong style="color:var(--text);">${result.fileName}</strong> in a "KRAA Backups" folder in your Drive. <a href="${result.fileUrl}" target="_blank" rel="noopener" style="color:var(--amber);">Open file ↗</a>`;
+    } else {
+      status.textContent = 'Backup failed: ' + (result?.error || 'unknown error');
+    }
   });
 
   root.querySelector('#restoreFile')?.addEventListener('change', (e) => {
@@ -1245,12 +1311,21 @@ function openModal(moduleKey, id) {
   });
   applyConditionalVisibility();
 
+  // Prevent Enter from silently submitting/closing the form while typing —
+  // a very easy accidental keypress. Save still works via the button click.
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+    }
+  });
+
   form.querySelector('#cancelModal').addEventListener('click', closeModal);
   form.onsubmit = (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form).entries());
-    if (id) Store.update(cfg.collection, id, data);
-    else Store.add(cfg.collection, data);
+    const previousRecord = id ? Store.get(cfg.collection, id) : null;
+    const saved = id ? Store.update(cfg.collection, id, data) : Store.add(cfg.collection, data);
+    if (cfg.onSave) cfg.onSave(saved, previousRecord);
     closeModal();
     render();
     syncCollection(moduleKey);
