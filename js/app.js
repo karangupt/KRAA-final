@@ -18,6 +18,82 @@ const fmtByType = (v, type) => (type === 'US Stock' ? '$' : '₹') + (Number(v) 
 // counted in "Available Balance" anywhere in the app. Add more types
 // here (e.g. 'PPF') and the exclusion applies everywhere automatically.
 const LOCKED_ACCOUNT_TYPES = ['Sukanya Samriddhi', 'Minor Account', 'Spouse Account'];
+
+// ---------- Invoice Generator: company letterhead + fixed content ----------
+// Edit these once here to change what appears on every generated invoice.
+const COMPANY_INFO = {
+  name: 'PROJECTOR SOLUTIONS',
+  tagline: '(Projector Rental & Audio Visual Services)',
+  addressLines: [
+    'C/o, Gupta Cycle Store, Shop No. 263D, Sector 11,',
+    'Juhu Gaon, Vashi, Navi Mumbai – 400703, Maharashtra'
+  ],
+  mobile: '+91 9819952683 / +91 9820889679',
+  email: 'info@projectorsolutions.in | karangupt@gmail.com',
+  udyam: 'UDYAM-MH-33-0763833',
+  gstNote: 'Not Applicable (Business exempt under GST threshold limit)',
+  bankName: 'IDFC FIRST Bank',
+  bankAccNo: '10165752073',
+  bankAccName: 'Karan Gupta',
+  bankBranchIfsc: 'Pune Branch & IDFB0041352',
+  upiId: '9820889679@okbizaxis',
+  paymentLink: 'https://razorpay.me/@projectorsolutions'
+};
+
+const INVOICE_TERMS = [
+  'Pricing: Prices mentioned in the invoice are inclusive of agreed rental charges only.',
+  'Payment Terms: Payment is due immediately upon completion of service unless otherwise agreed in writing.',
+  'Nature of Service: Equipment is provided strictly on a rental basis.',
+  'Equipment Responsibility: Any electrical, physical, liquid, accidental, or mishandling damage to the rented equipment during the rental period shall be chargeable to the customer.',
+  'Transportation & Installation: Transportation and installation charges are extra unless explicitly mentioned in the invoice.',
+  'Rental charges are applicable for a maximum usage period of 4 hours only. Any additional usage beyond the specified duration will be charged at ₹200 per hour per equipment.',
+  'Late Return / Delay: Extra charges may apply if the equipment is retained beyond the agreed rental time.',
+  'Power Requirement: Customer must ensure proper electricity and power backup availability at the venue.',
+  'Cancellation Policy: Last-minute cancellation after booking confirmation or dispatch may attract rental charges, as the equipment slot is reserved and other bookings may be declined.'
+];
+
+function numToWordsIndian(num) {
+  num = Math.round(Number(num) || 0);
+  if (num === 0) return 'Zero';
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  function twoDigits(n) {
+    if (n < 20) return ones[n];
+    return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+  }
+  function threeDigits(n) {
+    if (n < 100) return twoDigits(n);
+    return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + twoDigits(n % 100) : '');
+  }
+  const crore = Math.floor(num / 10000000); num %= 10000000;
+  const lakh = Math.floor(num / 100000); num %= 100000;
+  const thousand = Math.floor(num / 1000); num %= 1000;
+  const rest = num;
+  let parts = [];
+  if (crore) parts.push(threeDigits(crore) + ' Crore');
+  if (lakh) parts.push(threeDigits(lakh) + ' Lakh');
+  if (thousand) parts.push(threeDigits(thousand) + ' Thousand');
+  if (rest) parts.push(threeDigits(rest));
+  return parts.join(' ');
+}
+
+let invoiceDraft = {
+  docType: 'Provisional Invoice',
+  invoiceNo: '',
+  date: todayStr(),
+  deliveryDate: '',
+  duration: '1 Day Only (Four hours only)',
+  customerName: '',
+  customerAddress: '',
+  deliveryAddress: '',
+  sameAsCustomer: true,
+  items: [{ desc: '', qty: 1, rate: 0 }],
+  paid: false,
+  paymentMode: 'Cash',
+  paymentDate: ''
+};
+
 const todayStr = () => new Date().toISOString().slice(0,10);
 
 /* ---------- Module configs: drives generic table + form rendering ---------- */
@@ -417,9 +493,10 @@ const PLACEHOLDER_VIEWS = {
 };
 
 const CUSTOM_VIEWS = {
-  reports:  { title: 'Reports',              render: renderReports,  wire: null },
-  networth: { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: wireDashboard },
-  settings: { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
+  reports:    { title: 'Reports',              render: renderReports,  wire: null },
+  networth:   { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: wireDashboard },
+  invoiceGen: { title: 'Generate Invoice',     render: renderInvoiceGen, wire: wireInvoiceGen },
+  settings:   { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
 };
 
 function tagFor(status) {
@@ -653,6 +730,19 @@ function renderDashboard() {
 
 /* ---------- Generic module table view ---------- */
 const COLUMN_PREFS_KEY = 'kraa_column_prefs_v1';
+const COLUMN_WIDTH_KEY = 'kraa_column_width_v1';
+function getColumnWidth(moduleKey, field) {
+  try { return JSON.parse(localStorage.getItem(COLUMN_WIDTH_KEY) || '{}')[moduleKey]?.[field] || null; }
+  catch (e) { return null; }
+}
+function setColumnWidth(moduleKey, field, widthPx) {
+  try {
+    const all = JSON.parse(localStorage.getItem(COLUMN_WIDTH_KEY) || '{}');
+    all[moduleKey] = all[moduleKey] || {};
+    all[moduleKey][field] = widthPx;
+    localStorage.setItem(COLUMN_WIDTH_KEY, JSON.stringify(all));
+  } catch (e) {}
+}
 
 function getColumnPrefs(moduleKey) {
   try {
@@ -860,11 +950,17 @@ function renderModuleView(cfg, key) {
   ${MODULE_MONTHLY_BREAKDOWN.includes(key) ? renderMiniMonthlyBreakdown(Store.all(cfg.collection)) : ''}
   ${rows.length ? `
   <div class="table-wrap"><table class="ledger">
-    <thead><tr>${rows.length > 1 ? '<th style="width:30px;"></th>' : ''}${visibleColumns.map(c => `<th class="sortable-th" data-sort-field="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${activeSortField === c.field ? (activeSortDir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}<th></th></tr></thead>
+    <thead><tr>${rows.length > 1 ? '<th style="width:30px;"></th>' : ''}${visibleColumns.map(c => {
+      const w = getColumnWidth(key, c.field);
+      return `<th class="sortable-th" data-sort-field="${c.field}" style="cursor:pointer; user-select:none; position:relative; ${w ? `width:${w}px; max-width:${w}px; overflow:hidden; text-overflow:ellipsis;` : ''}">${c.label}${activeSortField === c.field ? (activeSortDir === 'asc' ? ' ▲' : ' ▼') : ''}<span class="col-resize-handle" data-resize-field="${c.field}"></span></th>`;
+    }).join('')}<th></th></tr></thead>
     <tbody>
       ${rows.map(r => `<tr>
         ${rows.length > 1 ? `<td><input type="radio" name="reorderRadio" data-reorder-key="${key}" value="${r.id}" ${reorderSelection[key] === r.id ? 'checked' : ''} style="accent-color:var(--amber);"></td>` : ''}
-        ${visibleColumns.map(c => `<td class="${c.cls||''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`).join('')}
+        ${visibleColumns.map(c => {
+          const w = getColumnWidth(key, c.field);
+          return `<td class="${c.cls||''}" style="${w ? `max-width:${w}px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;` : ''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`;
+        }).join('')}
         <td class="row-actions">
           <button data-edit="${key}" data-id="${r.id}">Edit</button>
           <button data-del="${key}" data-id="${r.id}">Delete</button>
@@ -909,8 +1005,43 @@ function wireModuleView(key) {
   root.querySelector('#moveDownBtn')?.addEventListener('click', () => doMove('down'));
   root.querySelector('#moveBottomBtn')?.addEventListener('click', () => doMove('bottom'));
 
+  let resizeJustHappened = false;
+  root.querySelectorAll('.col-resize-handle').forEach(handle => {
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const th = handle.closest('th');
+      const field = handle.dataset.resizeField;
+      const startX = e.clientX;
+      const startWidth = th.offsetWidth;
+      let moved = false;
+
+      function onMouseMove(ev) {
+        const delta = ev.clientX - startX;
+        if (Math.abs(delta) > 3) moved = true;
+        const newWidth = Math.max(60, startWidth + delta);
+        th.style.width = newWidth + 'px';
+        th.style.maxWidth = newWidth + 'px';
+      }
+      function onMouseUp(ev) {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        if (moved) {
+          const delta = ev.clientX - startX;
+          const finalWidth = Math.max(60, startWidth + delta);
+          setColumnWidth(key, field, finalWidth);
+          resizeJustHappened = true;
+          render();
+        }
+      }
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
+
   root.querySelectorAll('.sortable-th').forEach(th => {
     th.addEventListener('click', () => {
+      if (resizeJustHappened) { resizeJustHappened = false; return; }
       const field = th.dataset.sortField;
       const current = getSortPref(key);
       if (current && current.field === field) {
@@ -1126,6 +1257,241 @@ function renderNetWorth() {
     </table></div>
     <p style="color:var(--muted); font-size:12px; margin-top:12px;">Pulled live from Bank Accounts, FD/RD, Investments and Assets &amp; Liabilities — update those modules and this updates automatically.${excludedBankTotal > 0 ? ` Excludes ${fmt(excludedBankTotal)} in Sukanya/Minor/Spouse accounts — that money isn't counted as your personal net worth.` : ''}</p>
   </div>`;
+}
+
+/* ---------- Invoice Generator ---------- */
+function invoiceItemsTotal() {
+  return invoiceDraft.items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.rate) || 0), 0);
+}
+
+function renderInvoiceGen() {
+  const total = invoiceItemsTotal();
+  return `
+  <div id="invoiceGenControls">
+    <div class="card">
+      <div class="section-head"><h2>1. Document details</h2></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
+        <div class="field"><label>Document type</label>
+          <select id="ig_docType">
+            <option value="Provisional Invoice" ${invoiceDraft.docType==='Provisional Invoice'?'selected':''}>Provisional Invoice</option>
+            <option value="Tax Invoice" ${invoiceDraft.docType==='Tax Invoice'?'selected':''}>Invoice</option>
+          </select>
+        </div>
+        <div class="field"><label>Invoice number</label><input type="text" id="ig_invoiceNo" value="${invoiceDraft.invoiceNo}" placeholder="e.g. PS/2026/068"></div>
+        <div class="field"><label>Date</label><input type="date" id="ig_date" value="${invoiceDraft.date}"></div>
+        <div class="field"><label>Delivery date</label><input type="date" id="ig_deliveryDate" value="${invoiceDraft.deliveryDate}"></div>
+        <div class="field"><label>Duration</label><input type="text" id="ig_duration" value="${invoiceDraft.duration}"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head"><h2>2. Customer &amp; delivery</h2></div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
+        <div class="field"><label>Customer name</label><input type="text" id="ig_customerName" value="${invoiceDraft.customerName}"></div>
+        <div class="field"><label>Customer address</label><textarea id="ig_customerAddress" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:7px; font-size:13.5px; font-family:inherit;">${invoiceDraft.customerAddress}</textarea></div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12.5px; color:var(--muted); cursor:pointer;">
+        <input type="checkbox" id="ig_sameAddr" ${invoiceDraft.sameAsCustomer ? 'checked' : ''} style="accent-color:var(--amber);">
+        Delivery address same as customer address
+      </label>
+      <div class="field" id="ig_deliveryAddrField" style="margin-top:10px; ${invoiceDraft.sameAsCustomer ? 'display:none;' : ''}">
+        <label>Delivery address</label>
+        <textarea id="ig_deliveryAddress" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:7px; font-size:13.5px; font-family:inherit;">${invoiceDraft.deliveryAddress}</textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head"><h2>3. Items</h2><button class="btn secondary" id="ig_addItem">+ Add item</button></div>
+      <div class="table-wrap"><table class="ledger">
+        <thead><tr><th>Description</th><th style="width:80px;">Qty</th><th style="width:120px;">Rate</th><th style="width:120px;">Amount</th><th></th></tr></thead>
+        <tbody>
+          ${invoiceDraft.items.map((it, i) => `<tr>
+            <td><input type="text" data-item-field="desc" data-item-idx="${i}" value="${it.desc}" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:6px 8px; border-radius:6px; font-size:13px;"></td>
+            <td><input type="number" data-item-field="qty" data-item-idx="${i}" value="${it.qty}" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:6px 8px; border-radius:6px; font-size:13px;"></td>
+            <td><input type="number" data-item-field="rate" data-item-idx="${i}" value="${it.rate}" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:6px 8px; border-radius:6px; font-size:13px;"></td>
+            <td class="name-cell">${fmt((Number(it.qty)||0)*(Number(it.rate)||0))}</td>
+            <td><button data-remove-item="${i}" style="background:none; border:none; color:var(--danger); cursor:pointer;">✕</button></td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>
+      <p style="text-align:right; margin-top:10px; font-family:var(--font-mono); font-size:15px;">Total: <strong style="color:var(--amber);">${fmt(total)}</strong></p>
+    </div>
+
+    <div class="card">
+      <div class="section-head"><h2>4. Payment</h2></div>
+      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); cursor:pointer;">
+        <input type="checkbox" id="ig_paid" ${invoiceDraft.paid ? 'checked' : ''} style="accent-color:var(--amber);">
+        Mark as PAID (adds a payment confirmation block + stamp)
+      </label>
+      <div id="ig_paidFields" style="display:${invoiceDraft.paid ? '' : 'none'}; margin-top:14px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px;">
+          <div class="field"><label>Payment mode</label>
+            <select id="ig_paymentMode">
+              ${['Cash','UPI','Bank Transfer','Cheque','Credit Card'].map(m => `<option value="${m}" ${invoiceDraft.paymentMode===m?'selected':''}>${m}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Payment received on</label><input type="date" id="ig_paymentDate" value="${invoiceDraft.paymentDate}"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:24px;">
+      <button class="btn" id="ig_generate">Generate preview</button>
+      <button class="btn secondary" id="ig_print">🖨 Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div id="invoicePrintArea">${renderInvoicePrintable()}</div>`;
+}
+
+function renderInvoicePrintable() {
+  const total = invoiceItemsTotal();
+  const deliveryAddr = invoiceDraft.sameAsCustomer ? invoiceDraft.customerAddress : invoiceDraft.deliveryAddress;
+  const title = invoiceDraft.docType === 'Provisional Invoice' ? 'PROVISIONAL INVOICE – CUM – DELIVERY CHALLAN' : 'INVOICE – CUM – DELIVERY CHALLAN';
+
+  return `
+  <div class="invoice-sheet">
+    <div class="invoice-title">${title}</div>
+    <div class="invoice-header-row">
+      <div class="invoice-company">
+        <div class="invoice-company-name">${COMPANY_INFO.name}</div>
+        <div>${COMPANY_INFO.tagline}</div>
+        ${COMPANY_INFO.addressLines.map(l => `<div>${l}</div>`).join('')}
+        <div>Mobile: ${COMPANY_INFO.mobile}</div>
+        <div>Email: ${COMPANY_INFO.email}</div>
+        <div style="margin-top:6px;">Udyam Registration No.: ${COMPANY_INFO.udyam}</div>
+        <div>GSTIN: ${COMPANY_INFO.gstNote}</div>
+      </div>
+      <div class="invoice-meta">
+        <table>
+          <tr><td>Invoice No:</td><td>${invoiceDraft.invoiceNo || '—'}</td></tr>
+          <tr><td>Dated:</td><td>${fmtDate(invoiceDraft.date)}</td></tr>
+          <tr><td>Delivery Dated:</td><td>${fmtDate(invoiceDraft.deliveryDate)}</td></tr>
+          <tr><td>Duration:</td><td>${invoiceDraft.duration}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="invoice-addr-row">
+      <div><strong>Customer Details / Bill To:</strong><br>${invoiceDraft.customerName}<br>${(invoiceDraft.customerAddress||'').replace(/\n/g,'<br>')}</div>
+      <div><strong>Delivery Address:</strong><br>${(deliveryAddr||'').replace(/\n/g,'<br>')}</div>
+    </div>
+
+    <table class="invoice-items">
+      <thead><tr><th>SI No</th><th>Description of Goods</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead>
+      <tbody>
+        ${invoiceDraft.items.map((it, i) => `<tr><td>${i+1}</td><td>${it.desc}</td><td>${it.qty}</td><td>${it.rate ? fmt(it.rate) : ''}</td><td>${fmt((Number(it.qty)||0)*(Number(it.rate)||0))}</td></tr>`).join('')}
+        ${Array.from({length: Math.max(0, 6 - invoiceDraft.items.length)}).map(() => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
+        ${invoiceDraft.paid ? `<tr><td colspan="5" style="padding-top:16px;">
+          <strong>Payment Confirmation</strong><br>
+          This is to confirm that payment against the below invoice has been successfully received.<br><br>
+          <em>Invoice No.: ${invoiceDraft.invoiceNo}<br>
+          Invoice Amount: ${fmt(total)}<br>
+          Payment Mode: ${invoiceDraft.paymentMode}<br>
+          Payment Received On: ${fmtDate(invoiceDraft.paymentDate)}<br>
+          Status: PAID</em>
+        </td></tr>` : ''}
+      </tbody>
+      <tfoot><tr><td colspan="4" style="text-align:right;"><strong>Total</strong></td><td><strong>${fmt(total)}</strong></td></tr></tfoot>
+    </table>
+
+    <div class="invoice-words-row">
+      <div>Amount Chargeable (in words)<br><strong>Indian Rupees: ${numToWordsIndian(total)} Only</strong></div>
+      <div style="text-align:right;">E. &amp; O.E</div>
+    </div>
+
+    <div class="invoice-terms">
+      <strong>Terms &amp; Conditions:</strong>
+      <ol>${INVOICE_TERMS.map(t => `<li>${t}</li>`).join('')}</ol>
+      <strong>Mode of Payment: Only Digital Payments Accepted (Bank Transfer / UPI / NEFT / RTGS). Cash Payment Not Accepted.</strong><br>
+      GPay: UPI ID: ${COMPANY_INFO.upiId}<br>
+      Online Payment Link: <a href="${COMPANY_INFO.paymentLink}">${COMPANY_INFO.paymentLink}</a><br>
+      *If payment is made using a Credit Card, an additional 2.5% processing charge will be applicable
+    </div>
+
+    <div class="invoice-bank-sign">
+      <div>
+        <strong>Bank Details: (For Cheque Payment / NEFT / RTGS Transfer)</strong><br>
+        Bank Name: ${COMPANY_INFO.bankName}<br>
+        A/c No.: ${COMPANY_INFO.bankAccNo}<br>
+        A/c Name: ${COMPANY_INFO.bankAccName}<br>
+        Branch &amp; IFS Code: ${COMPANY_INFO.bankBranchIfsc}
+      </div>
+      <div style="text-align:center;">
+        ${invoiceDraft.paid ? '<div class="invoice-paid-stamp">PAID</div>' : ''}
+        <div style="margin-top:40px;">For ${COMPANY_INFO.name}</div>
+        <div>Authorised Signatory</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function wireInvoiceGen() {
+  const root = $('#viewRoot');
+  const bind = (id, prop, evt = 'input') => {
+    root.querySelector('#' + id)?.addEventListener(evt, (e) => {
+      invoiceDraft[prop] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      wireInvoiceGenRefresh();
+    });
+  };
+  bind('ig_docType', 'docType', 'change');
+  bind('ig_invoiceNo', 'invoiceNo');
+  bind('ig_date', 'date');
+  bind('ig_deliveryDate', 'deliveryDate');
+  bind('ig_duration', 'duration');
+  bind('ig_customerName', 'customerName');
+  bind('ig_customerAddress', 'customerAddress');
+  bind('ig_deliveryAddress', 'deliveryAddress');
+  bind('ig_paymentMode', 'paymentMode', 'change');
+  bind('ig_paymentDate', 'paymentDate');
+
+  root.querySelector('#ig_sameAddr')?.addEventListener('change', (e) => {
+    invoiceDraft.sameAsCustomer = e.target.checked;
+    render();
+  });
+  root.querySelector('#ig_paid')?.addEventListener('change', (e) => {
+    invoiceDraft.paid = e.target.checked;
+    render();
+  });
+
+  root.querySelectorAll('[data-item-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      const idx = Number(input.dataset.itemIdx);
+      const field = input.dataset.itemField;
+      invoiceDraft.items[idx][field] = field === 'desc' ? input.value : Number(input.value);
+      wireInvoiceGenRefresh();
+    });
+  });
+
+  root.querySelector('#ig_addItem')?.addEventListener('click', () => {
+    invoiceDraft.items.push({ desc: '', qty: 1, rate: 0 });
+    render();
+  });
+
+  root.querySelectorAll('[data-remove-item]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.removeItem);
+      if (invoiceDraft.items.length > 1) invoiceDraft.items.splice(idx, 1);
+      render();
+    });
+  });
+
+  root.querySelector('#ig_generate')?.addEventListener('click', () => {
+    $('#invoicePrintArea').innerHTML = renderInvoicePrintable();
+    $('#invoicePrintArea').scrollIntoView({ behavior: 'smooth' });
+  });
+
+  root.querySelector('#ig_print')?.addEventListener('click', () => {
+    $('#invoicePrintArea').innerHTML = renderInvoicePrintable();
+    window.print();
+  });
+}
+
+// Lightweight refresh: just updates the live total/preview without a full
+// re-render, so the form doesn't lose focus while typing.
+function wireInvoiceGenRefresh() {
+  const totalEl = document.querySelector('#invoiceGenControls .card:nth-child(3) p strong');
+  if (totalEl) totalEl.textContent = fmt(invoiceItemsTotal());
 }
 
 /* ---------- Settings ---------- */
