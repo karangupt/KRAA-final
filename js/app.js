@@ -81,7 +81,7 @@ function numToWordsIndian(num) {
 let invoiceDraft = {
   docType: 'Provisional Invoice',
   invoiceNo: '',
-  date: todayStr(),
+  date: new Date().toISOString().slice(0, 10),
   deliveryDate: '',
   duration: '1 Day Only (Four hours only)',
   customerName: '',
