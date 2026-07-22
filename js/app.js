@@ -1277,13 +1277,14 @@ function renderInvoiceGen() {
       <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
         <div class="field"><label>Document type</label>
           <select id="ig_docType">
+            <option value="Quotation" ${invoiceDraft.docType==='Quotation'?'selected':''}>Quotation</option>
             <option value="Provisional Invoice" ${invoiceDraft.docType==='Provisional Invoice'?'selected':''}>Provisional Invoice</option>
             <option value="Tax Invoice" ${invoiceDraft.docType==='Tax Invoice'?'selected':''}>Invoice</option>
           </select>
         </div>
         <div class="field"><label>Invoice number</label><input type="text" id="ig_invoiceNo" value="${invoiceDraft.invoiceNo}" placeholder="e.g. PS/2026/068"></div>
         <div class="field"><label>Date</label><input type="date" id="ig_date" value="${invoiceDraft.date}"></div>
-        <div class="field"><label>Delivery date</label><input type="date" id="ig_deliveryDate" value="${invoiceDraft.deliveryDate}"></div>
+        <div class="field"><label>${invoiceDraft.docType === 'Quotation' ? 'Valid until' : 'Delivery date'}</label><input type="date" id="ig_deliveryDate" value="${invoiceDraft.deliveryDate}"></div>
         <div class="field"><label>Duration</label><input type="text" id="ig_duration" value="${invoiceDraft.duration}"></div>
       </div>
     </div>
@@ -1321,6 +1322,7 @@ function renderInvoiceGen() {
       <p style="text-align:right; margin-top:10px; font-family:var(--font-mono); font-size:15px;">Total: <strong style="color:var(--amber);">${fmt(total)}</strong></p>
     </div>
 
+    ${invoiceDraft.docType !== 'Quotation' ? `
     <div class="card">
       <div class="section-head"><h2>4. Payment</h2></div>
       <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); cursor:pointer;">
@@ -1341,7 +1343,7 @@ function renderInvoiceGen() {
           </div>
         </div>
       </div>
-    </div>
+    </div>` : ''}
 
     <div style="display:flex; gap:10px; margin-bottom:24px; flex-wrap:wrap;">
       <button class="btn" id="ig_generate">Generate preview</button>
@@ -1357,7 +1359,9 @@ function renderInvoiceGen() {
 function renderInvoicePrintable() {
   const total = invoiceItemsTotal();
   const deliveryAddr = invoiceDraft.sameAsCustomer ? invoiceDraft.customerAddress : invoiceDraft.deliveryAddress;
-  const title = invoiceDraft.docType === 'Provisional Invoice' ? 'PROVISIONAL INVOICE – CUM – DELIVERY CHALLAN' : 'INVOICE – CUM – DELIVERY CHALLAN';
+  const title = invoiceDraft.docType === 'Quotation' ? 'QUOTATION'
+    : invoiceDraft.docType === 'Provisional Invoice' ? 'PROVISIONAL INVOICE – CUM – DELIVERY CHALLAN'
+    : 'INVOICE – CUM – DELIVERY CHALLAN';
 
   return `
   <div class="invoice-sheet">
@@ -1376,7 +1380,7 @@ function renderInvoicePrintable() {
         <table>
           <tr><td>Invoice No:</td><td>${invoiceDraft.invoiceNo || '—'}</td></tr>
           <tr><td>Dated:</td><td>${fmtDate(invoiceDraft.date)}</td></tr>
-          <tr><td>Delivery Dated:</td><td>${fmtDate(invoiceDraft.deliveryDate)}</td></tr>
+          <tr><td>${invoiceDraft.docType === 'Quotation' ? 'Valid Until:' : 'Delivery Dated:'}</td><td>${fmtDate(invoiceDraft.deliveryDate)}</td></tr>
           <tr><td>Duration:</td><td>${invoiceDraft.duration}</td></tr>
         </table>
       </div>
@@ -1384,7 +1388,7 @@ function renderInvoicePrintable() {
 
     <div class="invoice-addr-row">
       <div><strong>Customer Details / Bill To:</strong><br>${invoiceDraft.customerName}<br>${(invoiceDraft.customerAddress||'').replace(/\n/g,'<br>')}</div>
-      <div><strong>Delivery Address:</strong><br>${(deliveryAddr||'').replace(/\n/g,'<br>')}</div>
+      <div><strong>${invoiceDraft.docType === 'Quotation' ? 'Site / Venue Address:' : 'Delivery Address:'}</strong><br>${(deliveryAddr||'').replace(/\n/g,'<br>')}</div>
     </div>
 
     <table class="invoice-items">
@@ -1392,7 +1396,7 @@ function renderInvoicePrintable() {
       <tbody>
         ${invoiceDraft.items.map((it, i) => `<tr><td>${i+1}</td><td>${it.desc}</td><td>${it.qty}</td><td>${it.rate ? fmt(it.rate) : ''}</td><td>${fmt((Number(it.qty)||0)*(Number(it.rate)||0))}</td></tr>`).join('')}
         ${Array.from({length: Math.max(0, 6 - invoiceDraft.items.length)}).map(() => `<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>`).join('')}
-        ${invoiceDraft.paid ? `<tr><td colspan="5" style="padding-top:16px;">
+        ${invoiceDraft.paid && invoiceDraft.docType !== 'Quotation' ? `<tr><td colspan="5" style="padding-top:16px;">
           <strong>Payment Confirmation</strong><br>
           This is to confirm that payment against the below invoice has been successfully received.<br><br>
           <em>Invoice No.: ${invoiceDraft.invoiceNo}<br>
@@ -1413,7 +1417,7 @@ function renderInvoicePrintable() {
 
     <div class="invoice-terms">
       <strong>Terms &amp; Conditions:</strong>
-      <ol>${INVOICE_TERMS.map(t => `<li>${t}</li>`).join('')}</ol>
+      <ol>${(invoiceDraft.docType === 'Quotation' ? [`This quotation is valid until ${fmtDate(invoiceDraft.deliveryDate) !== '—' ? fmtDate(invoiceDraft.deliveryDate) : 'the date mentioned above'}. Prices and equipment availability are subject to confirmation after this date.`] : []).concat(INVOICE_TERMS).map(t => `<li>${t}</li>`).join('')}</ol>
       <strong>Mode of Payment: Only Digital Payments Accepted (Bank Transfer / UPI / NEFT / RTGS). Cash Payment Not Accepted.</strong><br>
       GPay: UPI ID: ${COMPANY_INFO.upiId}<br>
       Online Payment Link: <a href="${COMPANY_INFO.paymentLink}">${COMPANY_INFO.paymentLink}</a><br>
@@ -1429,7 +1433,7 @@ function renderInvoicePrintable() {
         Branch &amp; IFS Code: ${COMPANY_INFO.bankBranchIfsc}
       </div>
       <div style="text-align:center;">
-        ${invoiceDraft.paid ? `<img src="${PAID_STAMP_IMG}" alt="Paid" style="width:110px; height:110px;">` : ''}
+        ${invoiceDraft.paid && invoiceDraft.docType !== 'Quotation' ? `<img src="${PAID_STAMP_IMG}" alt="Paid" style="width:110px; height:110px;">` : ''}
         <div style="margin-top:10px;">For ${COMPANY_INFO.name}</div>
         <img src="${SIGNATURE_IMG}" alt="Signature" style="height:45px; margin:2px 0;">
         <div>Authorised Signatory</div>
@@ -1446,7 +1450,10 @@ function wireInvoiceGen() {
       wireInvoiceGenRefresh();
     });
   };
-  bind('ig_docType', 'docType', 'change');
+  root.querySelector('#ig_docType')?.addEventListener('change', (e) => {
+    invoiceDraft.docType = e.target.value;
+    render();
+  });
   bind('ig_invoiceNo', 'invoiceNo');
   bind('ig_date', 'date');
   bind('ig_deliveryDate', 'deliveryDate');
