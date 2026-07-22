@@ -231,7 +231,7 @@ table.ledger thead th.sortable-th:hover{color:var(--amber);}
 .col-panel-item input{accent-color:var(--amber);}
 
 /* ---------- Invoice Generator: printable sheet ---------- */
-#invoicePrintArea{ display:none; }
+#invoicePrintArea{ display:block; }
 .invoice-sheet{
   background:#fff; color:#111; padding:28px; border:2px solid #111; font-size:12px;
   font-family:Arial, Helvetica, sans-serif; max-width:800px; margin:24px auto;
