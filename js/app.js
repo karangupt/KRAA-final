@@ -88,6 +88,11 @@ let invoiceDraft = {
   deliveryDate: '',
   duration: '1 Day Only (Four hours only)',
   customerName: '',
+  customerGST: '',
+  customerEmail: '',
+  contactPersonName: '',
+  contactPersonNumber: '',
+  poNumber: '',
   customerAddress: '',
   deliveryAddress: '',
   sameAsCustomer: true,
@@ -1294,6 +1299,11 @@ function renderInvoiceGen() {
       <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px;">
         <div class="field"><label>Customer name</label><input type="text" id="ig_customerName" value="${invoiceDraft.customerName}"></div>
         <div class="field"><label>Customer address</label><textarea id="ig_customerAddress" rows="3" style="width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:7px; font-size:13.5px; font-family:inherit;">${invoiceDraft.customerAddress}</textarea></div>
+        <div class="field"><label>Customer GST number</label><input type="text" id="ig_customerGST" value="${invoiceDraft.customerGST}" placeholder="e.g. 27AAACL0582H1ZM"></div>
+        <div class="field"><label>Customer email</label><input type="text" id="ig_customerEmail" value="${invoiceDraft.customerEmail}"></div>
+        <div class="field"><label>Contact person name</label><input type="text" id="ig_contactPersonName" value="${invoiceDraft.contactPersonName}"></div>
+        <div class="field"><label>Contact person number</label><input type="text" id="ig_contactPersonNumber" value="${invoiceDraft.contactPersonNumber}"></div>
+        <div class="field"><label>PO / Reference number (optional)</label><input type="text" id="ig_poNumber" value="${invoiceDraft.poNumber}" placeholder="Customer's purchase order no."></div>
       </div>
       <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12.5px; color:var(--muted); cursor:pointer;">
         <input type="checkbox" id="ig_sameAddr" ${invoiceDraft.sameAsCustomer ? 'checked' : ''} style="accent-color:var(--amber);">
@@ -1387,7 +1397,13 @@ function renderInvoicePrintable() {
     </div>
 
     <div class="invoice-addr-row">
-      <div><strong>Customer Details / Bill To:</strong><br>${invoiceDraft.customerName}<br>${(invoiceDraft.customerAddress||'').replace(/\n/g,'<br>')}</div>
+      <div><strong>Customer Details / Bill To:</strong><br>${invoiceDraft.customerName}<br>${(invoiceDraft.customerAddress||'').replace(/\n/g,'<br>')}
+        ${invoiceDraft.customerGST ? `<br>GSTIN: ${invoiceDraft.customerGST}` : ''}
+        ${invoiceDraft.customerEmail ? `<br>Email: ${invoiceDraft.customerEmail}` : ''}
+        ${invoiceDraft.contactPersonName ? `<br>Contact: ${invoiceDraft.contactPersonName}${invoiceDraft.contactPersonNumber ? ' (' + invoiceDraft.contactPersonNumber + ')' : ''}` : ''}
+        ${!invoiceDraft.contactPersonName && invoiceDraft.contactPersonNumber ? `<br>Contact No.: ${invoiceDraft.contactPersonNumber}` : ''}
+        ${invoiceDraft.poNumber ? `<br>PO/Ref No.: ${invoiceDraft.poNumber}` : ''}
+      </div>
       <div><strong>${invoiceDraft.docType === 'Quotation' ? 'Site / Venue Address:' : 'Delivery Address:'}</strong><br>${(deliveryAddr||'').replace(/\n/g,'<br>')}</div>
     </div>
 
@@ -1460,6 +1476,11 @@ function wireInvoiceGen() {
   bind('ig_duration', 'duration');
   bind('ig_customerName', 'customerName');
   bind('ig_customerAddress', 'customerAddress');
+  bind('ig_customerGST', 'customerGST');
+  bind('ig_customerEmail', 'customerEmail');
+  bind('ig_contactPersonName', 'contactPersonName');
+  bind('ig_contactPersonNumber', 'contactPersonNumber');
+  bind('ig_poNumber', 'poNumber');
   bind('ig_deliveryAddress', 'deliveryAddress');
   bind('ig_paymentMode', 'paymentMode', 'change');
   bind('ig_paymentDate', 'paymentDate');
