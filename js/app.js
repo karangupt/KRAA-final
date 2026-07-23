@@ -1449,10 +1449,12 @@ function renderInvoicePrintable() {
         Branch &amp; IFS Code: ${COMPANY_INFO.bankBranchIfsc}
       </div>
       <div style="text-align:center;">
-        ${invoiceDraft.paid && invoiceDraft.docType !== 'Quotation' ? `<img src="${PAID_STAMP_IMG}" alt="Paid" style="width:110px; height:110px;">` : ''}
-        <div style="margin-top:10px;">For ${COMPANY_INFO.name}</div>
-        <img src="${SIGNATURE_IMG}" alt="Signature" style="height:45px; margin:2px 0;">
-        <div>Authorised Signatory</div>
+        <div>For ${COMPANY_INFO.name}</div>
+        <div style="position:relative; display:inline-block; margin-top:12px;">
+          <img src="${SIGNATURE_IMG}" alt="Signature" style="height:45px; display:block; margin:0 auto;">
+          ${invoiceDraft.paid && invoiceDraft.docType !== 'Quotation' ? `<img src="${PAID_STAMP_IMG}" alt="Paid" style="position:absolute; width:65px; height:65px; top:-19px; right:-22px; opacity:0.88;">` : ''}
+        </div>
+        <div style="margin-top:6px;">Authorised Signatory</div>
       </div>
     </div>
   </div>`;
