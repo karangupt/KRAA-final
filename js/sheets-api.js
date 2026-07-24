@@ -1,8 +1,8 @@
-/* KRAA Sheets Sync
+/* Workspace Sheets Sync
    ------------------------------------------------------------
    HOW TO CONNECT GOOGLE SHEETS (free, no hosting cost):
 
-   1. Create a Google Sheet. Name it anything, e.g. "KRAA Database".
+   1. Create a Google Sheet. Name it anything, e.g. "Workspace Database".
    2. In the Sheet, go to Extensions > Apps Script.
    3. Delete any starter code and paste the contents of
       backend/Code.gs (included in this project) into the editor.
