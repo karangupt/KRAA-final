@@ -134,12 +134,12 @@ function fetchFxRate(from, to) {
 
 function saveBackupToDrive(data) {
   try {
-    const folderName = 'KRAA Backups';
+    const folderName = 'Workspace Backups';
     const folders = DriveApp.getFoldersByName(folderName);
     const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
     const tz = Session.getScriptTimeZone() || 'Asia/Kolkata';
     const stamp = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd_HHmmss');
-    const filename = 'KRAA-backup-' + stamp + '.json';
+    const filename = 'Workspace-backup-' + stamp + '.json';
     const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
     const file = folder.createFile(filename, content, MimeType.PLAIN_TEXT);
     return { ok: true, fileName: filename, fileUrl: file.getUrl() };
