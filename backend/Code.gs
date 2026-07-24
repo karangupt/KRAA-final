@@ -1,7 +1,7 @@
 /**
- * KRAA Backend — Google Apps Script
+ * Workspace Backend — Google Apps Script
  * ------------------------------------------------------------
- * Turns a Google Sheet into a free JSON database for the KRAA app,
+ * Turns a Google Sheet into a free JSON database for the Workspace app,
  * protected by a password that never gets committed to GitHub.
  *
  * SETUP:
@@ -68,7 +68,7 @@ function doGet(e) {
   }
 
   if (action === 'ping') {
-    return jsonResponse({ ok: true, message: 'KRAA backend is alive' });
+    return jsonResponse({ ok: true, message: 'Workspace backend is alive' });
   }
   if (action === 'pullAll') {
     return jsonResponse({ ok: true, data: pullAllCollections() });
