@@ -1,15 +1,33 @@
-/* KRAA Data Store
+/* Workspace Data Store
    ------------------------------------------------------------
    Everything lives in localStorage under one key so the app
    works fully offline out of the box. When a Google Apps Script
    Web App URL is configured (see js/sheets-api.js), the same
    collections get pushed/pulled from a Google Sheet, which acts
    as the free cloud database.
+
+   NOTE: this store used to be named "KRAA". The key below was
+   renamed to "workspace_data_v1" — migrateLegacyKey() below copies
+   any existing data from the old key on first load so nothing is
+   ever lost, then removes the old key.
 */
 
-const KRAA_STORE_KEY = 'kraa_data_v1';
+const WORKSPACE_STORE_KEY = 'workspace_data_v1';
+const LEGACY_KRAA_STORE_KEY = 'kraa_data_v1';
 
-const KRAA_DEFAULT_DATA = {
+function migrateLegacyKey(oldKey, newKey) {
+  try {
+    if (localStorage.getItem(newKey) === null && localStorage.getItem(oldKey) !== null) {
+      localStorage.setItem(newKey, localStorage.getItem(oldKey));
+      localStorage.removeItem(oldKey);
+    }
+  } catch (e) {
+    console.error('Legacy key migration failed', e);
+  }
+}
+migrateLegacyKey(LEGACY_KRAA_STORE_KEY, WORKSPACE_STORE_KEY);
+
+const WORKSPACE_DEFAULT_DATA = {
   customers: [
     { id: 'c1', name: 'Vikram Studios', phone: '9820011223', email: 'vikram@studios.in', gst: '27ABCDE1234F1Z5', notes: 'Wedding videographer, repeat client' },
     { id: 'c2', name: 'St. Xavier College', phone: '9833344556', email: 'events@xaviers.edu', gst: '', notes: 'Annual fest client' }
@@ -82,20 +100,20 @@ const KRAA_DEFAULT_DATA = {
 const Store = (() => {
   function _load() {
     try {
-      const raw = localStorage.getItem(KRAA_STORE_KEY);
+      const raw = localStorage.getItem(WORKSPACE_STORE_KEY);
       if (!raw) {
-        localStorage.setItem(KRAA_STORE_KEY, JSON.stringify(KRAA_DEFAULT_DATA));
-        return structuredClone(KRAA_DEFAULT_DATA);
+        localStorage.setItem(WORKSPACE_STORE_KEY, JSON.stringify(WORKSPACE_DEFAULT_DATA));
+        return structuredClone(WORKSPACE_DEFAULT_DATA);
       }
       return JSON.parse(raw);
     } catch (e) {
       console.error('Store load failed', e);
-      return structuredClone(KRAA_DEFAULT_DATA);
+      return structuredClone(WORKSPACE_DEFAULT_DATA);
     }
   }
 
   function _save(data) {
-    localStorage.setItem(KRAA_STORE_KEY, JSON.stringify(data));
+    localStorage.setItem(WORKSPACE_STORE_KEY, JSON.stringify(data));
   }
 
   let data = _load();
@@ -131,7 +149,7 @@ const Store = (() => {
   }
 
   function reset() {
-    data = structuredClone(KRAA_DEFAULT_DATA);
+    data = structuredClone(WORKSPACE_DEFAULT_DATA);
     _save(data);
   }
 
