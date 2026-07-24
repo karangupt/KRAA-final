@@ -169,7 +169,7 @@ function showBootError(err) {
           js/ files is missing or out of date on this deployment.<br><br>
           Open the browser console (F12 → Console tab) for details, and check
           that all files in <code>js/</code> (store.js, auth.js, sheets-api.js,
-          helpers.js, modules-config.js, module-table.js, dashboard-router.js,
+          helpers.js, modules-data.js, module-table.js, dashboard-router.js,
           reports.js, invoice-generator.js, settings.js, views-custom.js,
           modal.js, boot.js) are all
           present and up to date in the repo.
