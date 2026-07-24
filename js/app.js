@@ -1710,12 +1710,26 @@ function renderSettingsView() {
 
   <div class="card">
     <div class="section-head"><h2>Security</h2></div>
-    <p style="color:var(--muted); font-size:13px;">
+    <p style="color:var(--muted); font-size:13px; margin-bottom:14px;">
       Login mode: <strong style="color:var(--text);">${sheetsOn ? 'Google Sheets (server-side check)' : 'Universal password (client-side hash)'}</strong><br><br>
       ${sheetsOn
         ? 'Password is verified by your Apps Script backend — it is never exposed in this app\'s code.'
-        : 'To change the password, generate a new SHA-256 hash (see README) and update UNIVERSAL_PASSWORD_HASH in js/auth.js, then redeploy. For stronger security, connect Google Sheets — see README Part 2.'}
+        : 'The password is checked against a hash stored in js/auth.js. There\'s no email-based recovery — if forgotten, generate a new hash below (or on the login screen) and update the code with it.'}
     </p>
+    <div style="border-top:1px solid var(--line); padding-top:14px;">
+      <label style="display:block; font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px;">Change / reset password</label>
+      <div class="field"><label>New password</label><input type="text" id="chgPwInput" placeholder="e.g. Karan@Projector2027"></div>
+      <button class="btn secondary" id="chgPwGenBtn" style="margin-top:8px;">Generate hash</button>
+      <div id="chgPwResultField" style="display:none; margin-top:12px;">
+        <div class="field"><label>New hash — copy this</label><input type="text" id="chgPwResult" readonly onclick="this.select()"></div>
+        <button class="btn secondary" id="chgPwCopyBtn" style="width:100%;">Copy hash</button>
+        <p style="color:var(--muted); font-size:11.5px; margin-top:10px; line-height:1.5;">
+          ${sheetsOn
+            ? 'Paste this into the Apps Script <code>setAppPassword()</code> hash property (or run setAppPassword() with the plain password instead), then redeploy — see README Part 2.'
+            : 'Paste this into <code>js/auth.js</code> as:<br><code>const UNIVERSAL_PASSWORD_HASH = \'paste-here\';</code> then commit &amp; deploy.'}
+        </p>
+      </div>
+    </div>
   </div>
 
   <div class="card" style="border-color:var(--danger);">
@@ -1732,13 +1746,31 @@ function renderSettingsView() {
 function wireSettingsView() {
   const root = $('#viewRoot');
 
+  root.querySelector('#chgPwGenBtn')?.addEventListener('click', async () => {
+    const pw = root.querySelector('#chgPwInput').value;
+    if (!pw) { alert('Type a new password first.'); return; }
+    const hash = await sha256Hex(pw);
+    root.querySelector('#chgPwResult').value = hash;
+    root.querySelector('#chgPwResultField').style.display = '';
+  });
+
+  root.querySelector('#chgPwCopyBtn')?.addEventListener('click', () => {
+    const field = root.querySelector('#chgPwResult');
+    field.select();
+    navigator.clipboard?.writeText(field.value).then(() => {
+      const btn = root.querySelector('#chgPwCopyBtn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy hash'; }, 1500);
+    }).catch(() => { document.execCommand('copy'); });
+  });
+
   root.querySelector('#backupBtn')?.addEventListener('click', () => {
     const data = Store.exportJSON();
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `kraa-backup-${todayStr()}.json`;
+    a.download = `workspace-backup-${todayStr()}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1756,7 +1788,7 @@ function wireSettingsView() {
     btn.disabled = false;
     btn.textContent = '📁 Backup to Google Drive';
     if (result && result.ok) {
-      status.innerHTML = `Saved as <strong style="color:var(--text);">${result.fileName}</strong> in a "KRAA Backups" folder in your Drive. <a href="${result.fileUrl}" target="_blank" rel="noopener" style="color:var(--amber);">Open file ↗</a>`;
+      status.innerHTML = `Saved as <strong style="color:var(--text);">${result.fileName}</strong> in a "Workspace Backups" folder in your Drive. <a href="${result.fileUrl}" target="_blank" rel="noopener" style="color:var(--amber);">Open file ↗</a>`;
     } else {
       status.textContent = 'Backup failed: ' + (result?.error || 'unknown error');
     }
@@ -1776,7 +1808,7 @@ function wireSettingsView() {
         alert('Backup restored successfully.');
         render();
       } catch (err) {
-        alert('Could not read this file — make sure it\'s a KRAA backup .json. ' + err.message);
+        alert('Could not read this file — make sure it\'s a Workspace backup .json. ' + err.message);
       }
     };
     reader.readAsText(file);
@@ -2095,7 +2127,7 @@ function showBootError(err) {
     screen.style.display = 'flex';
     screen.innerHTML = `
       <div class="login-card">
-        <div class="login-tag">KRAA</div>
+        <div class="login-tag">Projector Solutions</div>
         <h2>Something didn't load</h2>
         <p class="login-sub">
           The app hit an error while starting up. This usually means one of the
