@@ -98,6 +98,39 @@ const WORKSPACE_DEFAULT_DATA = {
 };
 
 const Store = (() => {
+  // Guaranteed-unique ID generator: timestamp + incrementing counter + random
+  // suffix. The old version used only a millisecond timestamp, so two records
+  // added in the same millisecond could end up with the SAME id — which then
+  // caused deleting one of them to delete every record sharing that id.
+  let _idCounter = 0;
+  function _generateId(collection) {
+    _idCounter += 1;
+    return collection.slice(0, 2) + Date.now().toString(36) + '_' + _idCounter.toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  // One-time repair pass: if any collection already has duplicate ids sitting
+  // in localStorage from before this fix, give every duplicate-after-the-first
+  // a brand new unique id. Nothing is ever removed here — every record stays,
+  // only ids that were accidentally shared get separated out.
+  function _dedupeIds(data) {
+    let changed = false;
+    Object.keys(data).forEach(collection => {
+      const arr = data[collection];
+      if (!Array.isArray(arr)) return;
+      const seen = new Set();
+      arr.forEach(record => {
+        if (!record || record.id == null) return;
+        if (seen.has(record.id)) {
+          record.id = _generateId(collection);
+          changed = true;
+        } else {
+          seen.add(record.id);
+        }
+      });
+    });
+    return changed;
+  }
+
   function _load() {
     try {
       const raw = localStorage.getItem(WORKSPACE_STORE_KEY);
@@ -105,7 +138,11 @@ const Store = (() => {
         localStorage.setItem(WORKSPACE_STORE_KEY, JSON.stringify(WORKSPACE_DEFAULT_DATA));
         return structuredClone(WORKSPACE_DEFAULT_DATA);
       }
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (_dedupeIds(parsed)) {
+        localStorage.setItem(WORKSPACE_STORE_KEY, JSON.stringify(parsed));
+      }
+      return parsed;
     } catch (e) {
       console.error('Store load failed', e);
       return structuredClone(WORKSPACE_DEFAULT_DATA);
@@ -128,7 +165,7 @@ const Store = (() => {
 
   function add(collection, record) {
     if (!data[collection]) data[collection] = [];
-    record.id = record.id || (collection.slice(0,2) + Date.now().toString(36));
+    record.id = record.id || _generateId(collection);
     data[collection].push(record);
     _save(data);
     return record;
@@ -144,7 +181,12 @@ const Store = (() => {
   }
 
   function remove(collection, id) {
-    data[collection] = (data[collection] || []).filter(r => r.id !== id);
+    const arr = data[collection] || [];
+    // Removes only the FIRST record matching this id, never all of them —
+    // even if two records somehow still shared an id, this limits the
+    // damage to one row instead of wiping every match.
+    const idx = arr.findIndex(r => r.id === id);
+    if (idx !== -1) arr.splice(idx, 1);
     _save(data);
   }
 
