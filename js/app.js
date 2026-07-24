@@ -1,4 +1,4 @@
-/* KRAA App — router + views */
+/* Workspace App — router + views */
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
@@ -754,8 +754,10 @@ function renderDashboard() {
 }
 
 /* ---------- Generic module table view ---------- */
-const COLUMN_PREFS_KEY = 'kraa_column_prefs_v1';
-const COLUMN_WIDTH_KEY = 'kraa_column_width_v1';
+const COLUMN_PREFS_KEY = 'workspace_column_prefs_v1';
+const COLUMN_WIDTH_KEY = 'workspace_column_width_v1';
+migrateLegacyKey('kraa_column_prefs_v1', COLUMN_PREFS_KEY);
+migrateLegacyKey('kraa_column_width_v1', COLUMN_WIDTH_KEY);
 function getColumnWidth(moduleKey, field) {
   try { return JSON.parse(localStorage.getItem(COLUMN_WIDTH_KEY) || '{}')[moduleKey]?.[field] || null; }
   catch (e) { return null; }
@@ -882,7 +884,8 @@ function renderMiniMonthlyBreakdown(rows) {
 }
 
 // Per-module "hide certain statuses" preference (e.g. hide Completed/Cancelled bookings)
-const STATUS_TAB_KEY = 'kraa_status_tab_v1';
+const STATUS_TAB_KEY = 'workspace_status_tab_v1';
+migrateLegacyKey('kraa_status_tab_v1', STATUS_TAB_KEY);
 function getSelectedTab(moduleKey) {
   try { return JSON.parse(localStorage.getItem(STATUS_TAB_KEY) || '{}')[moduleKey] || 'all'; }
   catch (e) { return 'all'; }
@@ -895,7 +898,8 @@ function setSelectedTab(moduleKey, tab) {
   } catch (e) {}
 }
 
-const SORT_PREF_KEY = 'kraa_sort_pref_v1';
+const SORT_PREF_KEY = 'workspace_sort_pref_v1';
+migrateLegacyKey('kraa_sort_pref_v1', SORT_PREF_KEY);
 function getSortPref(moduleKey) {
   try { return JSON.parse(localStorage.getItem(SORT_PREF_KEY) || '{}')[moduleKey] || null; }
   catch (e) { return null; }
@@ -2121,7 +2125,7 @@ function wireLoginForm() {
 }
 
 function showBootError(err) {
-  console.error('KRAA boot error:', err);
+  console.error('Workspace boot error:', err);
   const screen = document.getElementById('loginScreen');
   if (screen) {
     screen.style.display = 'flex';
