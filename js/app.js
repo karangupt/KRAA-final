@@ -103,6 +103,32 @@ let invoiceDraft = {
   paymentDate: ''
 };
 
+// Used by the "🖨 Generate New" button on the Invoices list — starts the
+// generator with a clean blank draft instead of whatever was last edited.
+function resetInvoiceDraft() {
+  invoiceDraft = {
+    docType: 'Provisional Invoice',
+    invoiceNo: '',
+    date: new Date().toISOString().slice(0, 10),
+    deliveryDate: '',
+    duration: '1 Day Only (Four hours only)',
+    customerName: '',
+    customerGST: '',
+    customerEmail: '',
+    contactPersonName: '',
+    contactPersonNumber: '',
+    poNumber: '',
+    customerAddress: '',
+    deliveryAddress: '',
+    sameAsCustomer: true,
+    items: [{ desc: '', qty: 1, rate: 0 }],
+    paid: false,
+    paymentMode: 'Cash',
+    txnId: '',
+    paymentDate: ''
+  };
+}
+
 const todayStr = () => new Date().toISOString().slice(0,10);
 
 /* ---------- Module configs: drives generic table + form rendering ---------- */
@@ -197,7 +223,7 @@ const MODULES = {
     ]
   },
   invoice: {
-    title: 'Quotation & Invoice', collection: 'invoices', icon: '◪',
+    title: 'Invoices', collection: 'invoices', icon: '◪',
     columns: [
       { label: 'Number', field: 'number', cls: 'name-cell' },
       { label: 'Type', field: 'docType', render: v => v || 'Invoice' },
@@ -506,7 +532,7 @@ const CUSTOM_VIEWS = {
   reports:         { title: 'Reports',              render: renderReports,  wire: null },
   networth:        { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: wireDashboard },
   invoiceGen:      { title: 'Generate Invoice',     render: renderInvoiceGen, wire: wireInvoiceGen },
-  bookingPayments: { title: 'Bookings & Payments',  render: renderBookingPayments, wire: wireBookingPayments },
+  bookingPayments: { title: 'Bookings',             render: renderBookingPayments, wire: wireBookingPayments },
   settings:        { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
 };
 
@@ -737,7 +763,7 @@ function renderDashboard() {
   </div>
 
   <div class="card">
-    <div class="section-head"><h2>Recent bookings</h2><button class="btn secondary" onclick="navigateTo('booking')">View all</button></div>
+    <div class="section-head"><h2>Recent bookings</h2><button class="btn secondary" onclick="navigateTo('bookingPayments')">View all</button></div>
     ${recentBookings.length ? `
     <div class="table-wrap"><table class="ledger">
       <thead><tr><th>Item</th><th>Dates</th><th>Amount</th><th>Status</th></tr></thead>
@@ -966,6 +992,7 @@ function renderModuleView(cfg, key) {
       </div>
       ${cfg.extraAction ? `<button class="btn secondary" id="${cfg.extraAction.id}">${cfg.extraAction.label}</button>` : ''}
       ${key === 'invoice' ? `<button class="btn secondary" id="printAnnualList">📋 Print Annual List</button>` : ''}
+      ${key === 'invoice' ? `<button class="btn secondary" id="generateNewInvoiceBtn">🖨 Generate New</button>` : ''}
       <button class="btn" data-add="${key}">+ Add</button>
     </div>
   </div>
@@ -1012,6 +1039,11 @@ function wireModuleView(key) {
     b.addEventListener('click', () => {
       openInvoiceInGenerator(b.dataset.openGen);
     }));
+  const genNewBtn = root.querySelector('#generateNewInvoiceBtn');
+  if (genNewBtn) genNewBtn.addEventListener('click', () => {
+    resetInvoiceDraft();
+    navigateTo('invoiceGen');
+  });
 
   root.querySelectorAll(`[data-edit="${key}"]`).forEach(b =>
     b.addEventListener('click', () => openModal(key, b.dataset.id)));
