@@ -259,6 +259,8 @@ table.ledger thead th.sortable-th:hover{color:var(--amber);}
   body *{ visibility:hidden; }
   #invoicePrintArea, #invoicePrintArea *{ visibility:visible; }
   #invoicePrintArea{ display:block !important; position:absolute; top:0; left:0; width:100%; }
+  #genericPrintArea, #genericPrintArea *{ visibility:visible; }
+  #genericPrintArea{ display:block !important; position:absolute; top:0; left:0; width:100%; }
   .invoice-sheet{ border:none; margin:0; max-width:100%; }
   .sidebar, .topbar, .backdrop, #invoiceGenControls{ display:none !important; }
 }
