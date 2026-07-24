@@ -200,6 +200,7 @@ const MODULES = {
     title: 'Quotation & Invoice', collection: 'invoices', icon: '◪',
     columns: [
       { label: 'Number', field: 'number', cls: 'name-cell' },
+      { label: 'Type', field: 'docType', render: v => v || 'Invoice' },
       { label: 'Date', field: 'date', render: fmtDate },
       { label: 'Amount', field: 'amount', render: v => fmt(v) },
       { label: 'Status', field: 'status', render: v => tagFor(v) },
@@ -502,11 +503,26 @@ const PLACEHOLDER_VIEWS = {
 };
 
 const CUSTOM_VIEWS = {
-  reports:    { title: 'Reports',              render: renderReports,  wire: null },
-  networth:   { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: wireDashboard },
-  invoiceGen: { title: 'Generate Invoice',     render: renderInvoiceGen, wire: wireInvoiceGen },
-  settings:   { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
+  reports:         { title: 'Reports',              render: renderReports,  wire: null },
+  networth:        { title: 'Net Worth Dashboard',  render: renderNetWorth, wire: wireDashboard },
+  invoiceGen:      { title: 'Generate Invoice',     render: renderInvoiceGen, wire: wireInvoiceGen },
+  bookingPayments: { title: 'Bookings & Payments',  render: renderBookingPayments, wire: wireBookingPayments },
+  settings:        { title: 'Settings',             render: renderSettingsView, wire: wireSettingsView }
 };
+
+function renderBookingPayments() {
+  return `
+  <div style="margin-bottom:8px; color:var(--muted); font-size:12px;">Everything from Bookings and Payments, on one page — same Add / Edit / Delete / Columns / Sort options as their own pages.</div>
+  <div id="bp_bookingSection">${renderModuleView(MODULES.booking, 'booking')}</div>
+  <div style="height:36px;"></div>
+  <div style="border-top:1px solid var(--line); margin-bottom:28px;"></div>
+  <div id="bp_paymentsSection">${renderModuleView(MODULES.payments, 'payments')}</div>`;
+}
+
+function wireBookingPayments() {
+  wireModuleView('booking');
+  wireModuleView('payments');
+}
 
 function tagFor(status) {
   const s = (status || '').toLowerCase();
@@ -924,19 +940,20 @@ function renderModuleView(cfg, key) {
   const summaryDefs = MODULE_SUMMARIES[key];
 
   return `
+  <div id="moduleWrap_${key}">
   <div class="section-head">
     <h2>${cfg.title}</h2>
     <div style="display:flex; gap:10px; position:relative; flex-wrap:wrap; align-items:center;">
       ${rows.length > 1 ? `
         <div style="display:flex; gap:4px; align-items:center; border:1px solid var(--line); border-radius:8px; padding:4px 6px;">
           <span style="font-size:11px; color:var(--muted); margin-right:4px;">Reorder:</span>
-          <button class="btn secondary" id="moveTopBtn" title="Move selected to top" ${!reorderSelection[key] ? 'disabled' : ''}>⤒</button>
-          <button class="btn secondary" id="moveUpBtn" title="Move selected up" ${!reorderSelection[key] ? 'disabled' : ''}>↑</button>
-          <button class="btn secondary" id="moveDownBtn" title="Move selected down" ${!reorderSelection[key] ? 'disabled' : ''}>↓</button>
-          <button class="btn secondary" id="moveBottomBtn" title="Move selected to bottom" ${!reorderSelection[key] ? 'disabled' : ''}>⤓</button>
+          <button class="btn secondary" id="moveTopBtn_${key}" title="Move selected to top" ${!reorderSelection[key] ? 'disabled' : ''}>⤒</button>
+          <button class="btn secondary" id="moveUpBtn_${key}" title="Move selected up" ${!reorderSelection[key] ? 'disabled' : ''}>↑</button>
+          <button class="btn secondary" id="moveDownBtn_${key}" title="Move selected down" ${!reorderSelection[key] ? 'disabled' : ''}>↓</button>
+          <button class="btn secondary" id="moveBottomBtn_${key}" title="Move selected to bottom" ${!reorderSelection[key] ? 'disabled' : ''}>⤓</button>
         </div>` : ''}
-      <button class="btn secondary" id="columnsBtn">⚙ Columns</button>
-      <div class="col-panel" id="columnsPanel" style="display:none;">
+      <button class="btn secondary" id="columnsBtn_${key}">⚙ Columns</button>
+      <div class="col-panel" id="columnsPanel_${key}" style="display:none;">
         ${cfg.columns.map(c => `
           <label class="col-panel-item">
             <input type="checkbox" data-col-toggle="${c.field}" ${isColumnVisible(key, c.field) ? 'checked' : ''}>
@@ -944,6 +961,7 @@ function renderModuleView(cfg, key) {
           </label>`).join('')}
       </div>
       ${cfg.extraAction ? `<button class="btn secondary" id="${cfg.extraAction.id}">${cfg.extraAction.label}</button>` : ''}
+      ${key === 'invoice' ? `<button class="btn secondary" id="printAnnualList">📋 Print Annual List</button>` : ''}
       <button class="btn" data-add="${key}">+ Add</button>
     </div>
   </div>
@@ -965,25 +983,32 @@ function renderModuleView(cfg, key) {
     }).join('')}<th></th></tr></thead>
     <tbody>
       ${rows.map(r => `<tr>
-        ${rows.length > 1 ? `<td><input type="radio" name="reorderRadio" data-reorder-key="${key}" value="${r.id}" ${reorderSelection[key] === r.id ? 'checked' : ''} style="accent-color:var(--amber);"></td>` : ''}
+        ${rows.length > 1 ? `<td><input type="radio" name="reorderRadio_${key}" data-reorder-key="${key}" value="${r.id}" ${reorderSelection[key] === r.id ? 'checked' : ''} style="accent-color:var(--amber);"></td>` : ''}
         ${visibleColumns.map(c => {
           const w = getColumnWidth(key, c.field);
           return `<td class="${c.cls||''}" style="${w ? `max-width:${w}px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;` : ''}">${c.render ? c.render(r[c.field], r) : (r[c.field] ?? '')}</td>`;
         }).join('')}
         <td class="row-actions">
+          ${key === 'invoice' ? `<button data-open-gen="${r.id}">🖨 Open</button>` : ''}
           <button data-edit="${key}" data-id="${r.id}">Edit</button>
           <button data-del="${key}" data-id="${r.id}">Delete</button>
         </td>
       </tr>`).join('')}
     </tbody>
   </table></div>` : `<div class="empty-state"><div class="glyph">${cfg.icon}</div>${selectedTab !== 'all' ? `Nothing with status "${selectedTab}" — try the "All" tab above.` : 'No records yet. Click "+ Add" to create the first one.'}</div>`}
-  ${rows.length > 1 ? `<p style="color:var(--muted); font-size:11.5px; margin-top:10px;">Select a row with the radio button, then use the Reorder ⤒ ↑ ↓ ⤓ controls above to move it — this clears any active column sort so your order shows.</p>` : ''}`;
+  ${rows.length > 1 ? `<p style="color:var(--muted); font-size:11.5px; margin-top:10px;">Select a row with the radio button, then use the Reorder ⤒ ↑ ↓ ⤓ controls above to move it — this clears any active column sort so your order shows.</p>` : ''}
+  </div>`;
 }
 
 function wireModuleView(key) {
-  const root = $('#viewRoot');
+  const root = $('#moduleWrap_' + key) || $('#viewRoot');
   const addBtn = root.querySelector(`[data-add="${key}"]`);
   if (addBtn) addBtn.addEventListener('click', () => openModal(key, null));
+  root.querySelectorAll(`[data-open-gen]`).forEach(b =>
+    b.addEventListener('click', () => {
+      openInvoiceInGenerator(b.dataset.openGen);
+    }));
+
   root.querySelectorAll(`[data-edit="${key}"]`).forEach(b =>
     b.addEventListener('click', () => openModal(key, b.dataset.id)));
   root.querySelectorAll(`[data-del="${key}"]`).forEach(b =>
@@ -1009,10 +1034,10 @@ function wireModuleView(key) {
     render();
     syncCollection(key);
   };
-  root.querySelector('#moveTopBtn')?.addEventListener('click', () => doMove('top'));
-  root.querySelector('#moveUpBtn')?.addEventListener('click', () => doMove('up'));
-  root.querySelector('#moveDownBtn')?.addEventListener('click', () => doMove('down'));
-  root.querySelector('#moveBottomBtn')?.addEventListener('click', () => doMove('bottom'));
+  root.querySelector('#moveTopBtn_' + key)?.addEventListener('click', () => doMove('top'));
+  root.querySelector('#moveUpBtn_' + key)?.addEventListener('click', () => doMove('up'));
+  root.querySelector('#moveDownBtn_' + key)?.addEventListener('click', () => doMove('down'));
+  root.querySelector('#moveBottomBtn_' + key)?.addEventListener('click', () => doMove('bottom'));
 
   let resizeJustHappened = false;
   root.querySelectorAll('.col-resize-handle').forEach(handle => {
@@ -1073,8 +1098,8 @@ function wireModuleView(key) {
     });
   });
 
-  const columnsBtn = root.querySelector('#columnsBtn');
-  const columnsPanel = root.querySelector('#columnsPanel');
+  const columnsBtn = root.querySelector('#columnsBtn_' + key);
+  const columnsPanel = root.querySelector('#columnsPanel_' + key);
   columnsBtn?.addEventListener('click', (e) => {
     e.stopPropagation();
     columnsPanel.style.display = columnsPanel.style.display === 'none' ? '' : 'none';
@@ -1096,6 +1121,40 @@ function wireModuleView(key) {
   if (key === 'investments') {
     root.querySelector('#refreshPrices')?.addEventListener('click', refreshStockPrices);
   }
+
+  if (key === 'invoice') {
+    root.querySelector('#printAnnualList')?.addEventListener('click', printAnnualInvoiceList);
+  }
+}
+
+function printAnnualInvoiceList() {
+  const invoices = Store.all('invoices');
+  const years = [...new Set(invoices.map(i => (i.date || '').slice(0, 4)).filter(Boolean))].sort().reverse();
+  const defaultYear = years[0] || todayStr().slice(0, 4);
+  const year = prompt(`Print invoice list for which year?${years.length ? ' (years with data: ' + years.join(', ') + ')' : ''}`, defaultYear);
+  if (!year) return;
+
+  const yearInvoices = invoices.filter(i => (i.date || '').startsWith(year)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const total = yearInvoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+
+  const html = `
+  <div class="invoice-sheet">
+    <div class="invoice-title">INVOICE LIST — ${year}</div>
+    <div style="margin-bottom:10px;">${COMPANY_INFO.name} — ${COMPANY_INFO.addressLines.join(', ')}</div>
+    <table class="invoice-items">
+      <thead><tr><th>Number</th><th>Type</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        ${yearInvoices.map(i => `<tr><td>${i.number}</td><td>${i.docType || 'Invoice'}</td><td>${fmtDate(i.date)}</td><td>${i.customerName || '—'}</td><td>${fmt(i.amount)}</td><td>${i.status}</td></tr>`).join('')}
+      </tbody>
+      <tfoot><tr><td colspan="4" style="text-align:right;"><strong>Total (${yearInvoices.length} invoice${yearInvoices.length===1?'':'s'})</strong></td><td colspan="2"><strong>${fmt(total)}</strong></td></tr></tfoot>
+    </table>
+  </div>`;
+
+  $('#genericPrintArea').innerHTML = html;
+  const originalTitle = document.title;
+  document.title = `Invoice List ${year}`;
+  window.print();
+  setTimeout(() => { document.title = originalTitle; }, 500);
 }
 
 async function refreshStockPrices() {
@@ -1273,6 +1332,48 @@ function invoiceItemsTotal() {
   return invoiceDraft.items.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.rate) || 0), 0);
 }
 
+function openInvoiceInGenerator(invoiceId) {
+  const rec = Store.get('invoices', invoiceId);
+  if (!rec) return;
+
+  if (rec.fullDataJson) {
+    try {
+      invoiceDraft = JSON.parse(rec.fullDataJson);
+    } catch (e) {
+      console.error('Could not parse saved invoice data, rebuilding a basic draft instead', e);
+    }
+  }
+
+  if (!rec.fullDataJson) {
+    // Older entry created before this feature existed, or added manually —
+    // build a best-effort starting draft from whatever fields it does have.
+    const customer = rec.customerId ? Store.get('customers', rec.customerId) : null;
+    invoiceDraft = {
+      docType: rec.docType || 'Tax Invoice',
+      invoiceNo: rec.number || '',
+      date: rec.date || todayStr(),
+      deliveryDate: '',
+      duration: '1 Day Only (Four hours only)',
+      customerName: rec.customerName || (customer ? customer.name : ''),
+      customerAddress: customer ? (customer.companyName || '') : '',
+      deliveryAddress: '',
+      sameAsCustomer: true,
+      customerGST: customer ? (customer.gst || '') : '',
+      customerEmail: customer ? (customer.email || '') : '',
+      contactPersonName: '',
+      contactPersonNumber: customer ? (customer.phone || '') : '',
+      poNumber: '',
+      items: [{ desc: 'Rental charges', qty: 1, rate: Number(rec.amount || 0) }],
+      paid: rec.status === 'paid',
+      paymentMode: 'Cash',
+      txnId: '',
+      paymentDate: ''
+    };
+  }
+
+  navigateTo('invoiceGen');
+}
+
 function renderInvoiceGen() {
   const total = invoiceItemsTotal();
   return `
@@ -1448,12 +1549,10 @@ function renderInvoicePrintable() {
         A/c Name: ${COMPANY_INFO.bankAccName}<br>
         Branch &amp; IFS Code: ${COMPANY_INFO.bankBranchIfsc}
       </div>
-      <div style="text-align:center;">
+      <div style="text-align:center; position:relative;">
+        ${invoiceDraft.paid && invoiceDraft.docType !== 'Quotation' ? `<img src="${PAID_STAMP_IMG}" alt="Paid" style="position:absolute; width:120px; height:120px; left:-30px; top:-8px; opacity:0.88; z-index:2;">` : ''}
         <div>For ${COMPANY_INFO.name}</div>
-        <div style="position:relative; display:inline-block; margin-top:12px;">
-          <img src="${SIGNATURE_IMG}" alt="Signature" style="height:45px; display:block; margin:0 auto;">
-          ${invoiceDraft.paid && invoiceDraft.docType !== 'Quotation' ? `<img src="${PAID_STAMP_IMG}" alt="Paid" style="position:absolute; width:65px; height:65px; top:-19px; right:-22px; opacity:0.88;">` : ''}
-        </div>
+        <img src="${SIGNATURE_IMG}" alt="Signature" style="height:45px; margin-top:6px;">
         <div style="margin-top:6px;">Authorised Signatory</div>
       </div>
     </div>
@@ -1533,12 +1632,18 @@ function wireInvoiceGen() {
     }
     const total = invoiceItemsTotal();
     const existing = Store.all('invoices').find(inv => inv.number === invoiceDraft.invoiceNo);
+    // Store both the flat summary fields (used by Dashboard/Reports revenue
+    // calculations) AND the full snapshot as JSON, so this exact invoice can
+    // be reopened, edited, reprinted, or resent to the customer anytime —
+    // nothing is lost after you close this page.
     const record = {
       number: invoiceDraft.invoiceNo,
       date: invoiceDraft.date,
       amount: total,
       status: invoiceDraft.paid ? 'paid' : 'unpaid',
-      customerName: invoiceDraft.customerName
+      customerName: invoiceDraft.customerName,
+      docType: invoiceDraft.docType,
+      fullDataJson: JSON.stringify(invoiceDraft)
     };
     if (existing) {
       Store.update('invoices', existing.id, record);
@@ -1547,7 +1652,7 @@ function wireInvoiceGen() {
     }
     syncCollection('invoice');
     status.style.color = 'var(--teal)';
-    status.textContent = `Saved to Quotation & Invoice records (${existing ? 'updated' : 'new entry'}). You'll see it there for tracking.`;
+    status.textContent = `Saved (${existing ? 'updated' : 'new'}). Find it anytime in "Quotation & Invoice" — click "Open" on that row to reprint or resend it.`;
   });
 
   root.querySelector('#ig_generate')?.addEventListener('click', () => {
